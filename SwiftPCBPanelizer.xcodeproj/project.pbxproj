@@ -1,0 +1,231 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		B1000000000000000000000E /* SwiftPCBPanelizerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000D /* SwiftPCBPanelizerApp.swift */; };
+		B10000000000000000000014 /* EaglePanelEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000013 /* EaglePanelEngine.swift */; };
+		B10000000000000000000015 /* KiCadPanelEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000016 /* KiCadPanelEngine.swift */; };
+		B10000000000000000000018 /* PanelRouting.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000017 /* PanelRouting.swift */; };
+		B1000000000000000000001A /* Resources/Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000019 /* Resources/Assets.xcassets */; };
+		B1000000000000000000001C /* PanelComposition.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000001B /* PanelComposition.swift */; };
+		B1000000000000000000001E /* PanelArtwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000001D /* PanelArtwork.swift */; };
+		B10000000000000000000020 /* InterfaceTypography.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000001F /* InterfaceTypography.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		B1000000000000000000000A /* SwiftPCBPanelizer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SwiftPCBPanelizer.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B1000000000000000000000D /* SwiftPCBPanelizerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftPCBPanelizerApp.swift; sourceTree = "<group>"; };
+		B10000000000000000000013 /* EaglePanelEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EaglePanelEngine.swift; sourceTree = "<group>"; };
+		B10000000000000000000016 /* KiCadPanelEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KiCadPanelEngine.swift; sourceTree = "<group>"; };
+		B10000000000000000000017 /* PanelRouting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelRouting.swift; sourceTree = "<group>"; };
+		B10000000000000000000019 /* Resources/Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Resources/Assets.xcassets; sourceTree = "<group>"; };
+		B1000000000000000000001B /* PanelComposition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelComposition.swift; sourceTree = "<group>"; };
+		B1000000000000000000001D /* PanelArtwork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelArtwork.swift; sourceTree = "<group>"; };
+		B1000000000000000000001F /* InterfaceTypography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterfaceTypography.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		B10000000000000000000008 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		B10000000000000000000004 = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000012 /* Sources/SwiftPCBPanelizer */,
+				B10000000000000000000019 /* Resources/Assets.xcassets */,
+				B10000000000000000000005 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		B10000000000000000000005 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				B1000000000000000000000A /* SwiftPCBPanelizer.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		B10000000000000000000012 /* Sources/SwiftPCBPanelizer */ = {
+			isa = PBXGroup;
+			children = (
+				B1000000000000000000000D /* SwiftPCBPanelizerApp.swift */,
+				B10000000000000000000013 /* EaglePanelEngine.swift */,
+				B10000000000000000000016 /* KiCadPanelEngine.swift */,
+				B10000000000000000000017 /* PanelRouting.swift */,
+				B1000000000000000000001B /* PanelComposition.swift */,
+				B1000000000000000000001D /* PanelArtwork.swift */,
+				B1000000000000000000001F /* InterfaceTypography.swift */,
+			);
+			path = Sources/SwiftPCBPanelizer;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		B10000000000000000000002 /* SwiftPCBPanelizer */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B10000000000000000000003 /* Build configuration list for PBXNativeTarget "SwiftPCBPanelizer" */;
+			buildPhases = (
+				B10000000000000000000007 /* Sources */,
+				B10000000000000000000008 /* Frameworks */,
+				B10000000000000000000009 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SwiftPCBPanelizer;
+			productName = SwiftPCBPanelizer;
+			productReference = B1000000000000000000000A /* SwiftPCBPanelizer.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		B10000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastUpgradeCheck = 2700;
+				TargetAttributes = {
+					B10000000000000000000002 = {
+						CreatedOnToolsVersion = 27.0;
+					};
+				};
+			};
+			buildConfigurationList = B1000000000000000000000F /* Build configuration list for PBXProject "SwiftPCBPanelizer" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				ja,
+				de,
+				Base,
+			);
+			mainGroup = B10000000000000000000004;
+			productRefGroup = B10000000000000000000005 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				B10000000000000000000002 /* SwiftPCBPanelizer */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		B10000000000000000000009 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B1000000000000000000001A /* Resources/Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		B10000000000000000000007 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B1000000000000000000000E /* SwiftPCBPanelizerApp.swift in Sources */,
+				B10000000000000000000014 /* EaglePanelEngine.swift in Sources */,
+				B10000000000000000000015 /* KiCadPanelEngine.swift in Sources */,
+				B10000000000000000000018 /* PanelRouting.swift in Sources */,
+				B1000000000000000000001C /* PanelComposition.swift in Sources */,
+				B1000000000000000000001E /* PanelArtwork.swift in Sources */,
+				B10000000000000000000020 /* InterfaceTypography.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		B1000000000000000000000B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGNING_ALLOWED = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Info.plist;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = jp.switchscience.swiftpcbpanelizer;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		B1000000000000000000000C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGNING_ALLOWED = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Info.plist;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = jp.switchscience.swiftpcbpanelizer;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		B10000000000000000000010 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		B10000000000000000000011 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		B10000000000000000000003 /* Build configuration list for PBXNativeTarget "SwiftPCBPanelizer" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B1000000000000000000000B /* Debug */,
+				B1000000000000000000000C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B1000000000000000000000F /* Build configuration list for PBXProject "SwiftPCBPanelizer" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B10000000000000000000010 /* Debug */,
+				B10000000000000000000011 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = B10000000000000000000001 /* Project object */;
+}
