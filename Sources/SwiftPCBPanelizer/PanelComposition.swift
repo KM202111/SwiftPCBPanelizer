@@ -26,10 +26,14 @@ SOFTWARE.
 import Foundation
 import Darwin
 
+// EN: String/character literals are defined in TextConstants.Composition, Common and Characters; variable text uses constant templates.
+// JA: 文字列・文字リテラルはTextConstants.Composition・Common・Charactersに定義し、可変文は定数テンプレートから生成する。
+// DE: Zeichenketten-/Zeichenliterale stehen in TextConstants.Composition, Common und Characters; variable Texte nutzen konstante Vorlagen.
+
 enum BoardKind {
     case eagle
     case kicad
-    var title: String { self == .eagle ? "EAGLE" : "KiCad" }
+    var title: String { self == .eagle ? TextConstants.Composition.tokenEAGLE : TextConstants.Composition.tokenKiCad }
 }
 
 struct PanelSource {
@@ -57,6 +61,10 @@ extension PanelOptions {
 struct PanelBoardShape {
     let bounds: RouteRect
     let contours: [[RoutePoint]]
+    /// EN: Original straight outline segments [mm]; exclude tessellated arcs and circles.
+    /// JA: 元データの直線外形 [mm]。円弧や円を近似した線分は含めない。
+    /// DE: Ursprüngliche gerade Kontursegmente [mm]; angenäherte Kreisbögen und Kreise ausschließen.
+    var straightEdges: [RouteSegment] = []
 }
 
 struct PanelPlacement {
@@ -86,8 +94,9 @@ struct PanelCompositionLayout {
         guard !bounds.isEmpty, options.columns > 0, options.rows > 0 else {
             throw RoutingError.invalid(
                 L10n.text(
-                    "Add a board and set at least one row and column.", "基板を追加し、列数と行数を1以上にしてください。",
-                    "Fügen Sie eine Leiterplatte hinzu und stellen Sie mindestens eine Zeile und eine Spalte ein."))
+                    TextConstants.Composition.addABoardAndSetAtLeastOneRowEnglish,
+                    TextConstants.Composition.addABoardAndSetAtLeastOneRowJapanese,
+                    TextConstants.Composition.addABoardAndSetAtLeastOneRowGerman))
         }
         let measurements = [
             options.columnGapMM, options.rowGapMM, options.verticalFrameMM, options.horizontalFrameMM,
@@ -99,9 +108,9 @@ struct PanelCompositionLayout {
         else {
             throw RoutingError.invalid(
                 L10n.text(
-                    "Panel measurements must be finite and nonnegative; the mounting drill must be positive.",
-                    "パネル寸法は有限の0以上の値、取付穴径は0より大きい値にしてください。",
-                    "Die Nutzenmaße müssen endlich und mindestens 0 sein; der Durchmesser der Befestigungsbohrung muss größer als 0 sein."
+                    TextConstants.Composition.panelMeasurementsMustBeFiniteAndNonnegativeTheMountingEnglish,
+                    TextConstants.Composition.panelMeasurementsMustBeFiniteAndNonnegativeTheMountingJapanese,
+                    TextConstants.Composition.panelMeasurementsMustBeFiniteAndNonnegativeTheMountingGerman
                 ))
         }
         guard
@@ -111,8 +120,9 @@ struct PanelCompositionLayout {
         else {
             throw RoutingError.invalid(
                 L10n.text(
-                    "A board has invalid outline dimensions.", "基板外形の寸法が不正です。",
-                    "Eine Leiterplatte hat ungültige Konturabmessungen."))
+                    TextConstants.Composition.aBoardHasInvalidOutlineDimensionsEnglish,
+                    TextConstants.Composition.aBoardHasInvalidOutlineDimensionsJapanese,
+                    TextConstants.Composition.aBoardHasInvalidOutlineDimensionsGerman))
         }
         try PanelRouting.validatePoints(bounds.flatMap(\.points))
         let indices =
@@ -147,8 +157,8 @@ struct PanelCompositionLayout {
             minY: -options.horizontalFrameMM - options.frameGapMM,
             maxX: width + options.verticalFrameMM + options.frameGapMM,
             maxY: y - options.rowGapMM + options.horizontalFrameMM + options.frameGapMM)
-        try PanelValidation.rectangle(arrayBounds, field: "layout.arrayBounds")
-        try PanelValidation.rectangle(panelBounds, field: "layout.panelBounds")
+        try PanelValidation.rectangle(arrayBounds, field: TextConstants.Composition.tokenLayoutArrayBounds)
+        try PanelValidation.rectangle(panelBounds, field: TextConstants.Composition.tokenLayoutPanelBounds)
         try PanelValidation.mountingHoles(
             width: panelBounds.maxX - panelBounds.minX, height: panelBounds.maxY - panelBounds.minY, options: options)
     }
@@ -172,19 +182,45 @@ struct PanelCompositionLayout {
     ///   DE: Konturen in Panelkoordinaten [mm] in derselben Reihenfolge wie placements.
     func placedContours(_ shapes: [PanelBoardShape]) throws -> [[[RoutePoint]]] {
         guard placements.allSatisfy({ shapes.indices.contains($0.sourceIndex) }) else {
-            throw PanelValidation.invalid("placedContours.shapes", "all placement source indexes exist")
+            throw PanelValidation.invalid(
+                TextConstants.Composition.tokenPlacedContoursShapes,
+                TextConstants.Composition.textAllPlacementSourceIndexesExist)
         }
         for shape in shapes {
-            try PanelValidation.shape(shape, field: "placedContours.input")
+            try PanelValidation.shape(shape, field: TextConstants.Composition.tokenPlacedContoursInput)
         }
         let result = placements.map { placement in
             shapes[placement.sourceIndex].contours.map { $0.map { $0 + placement.offset } }
         }
         for (index, contours) in result.enumerated() {
             try PanelValidation.validateContained(
-                contours.flatMap { $0 }, in: placements[index].bounds, field: "placedContours.output")
+                contours.flatMap { $0 }, in: placements[index].bounds,
+                field: TextConstants.Composition.tokenPlacedContoursOutput)
         }
         return result
+    }
+
+    /// EN: Translate original straight segments into each placement [mm], retaining their distinction from curves.
+    /// JA: 元の直線外形を各配置座標 [mm] へ移動し、曲線との区別を維持する。
+    /// DE: Ursprüngliche gerade Kontursegmente in jede Platzierung [mm] verschieben und von Kurven unterscheiden.
+    func placedStraightEdges(_ shapes: [PanelBoardShape]) throws -> [[RouteSegment]] {
+        guard placements.allSatisfy({ shapes.indices.contains($0.sourceIndex) }) else {
+            throw PanelValidation.invalid(
+                TextConstants.Composition.tokenPlacedStraightEdgesShapes,
+                TextConstants.Composition.textAllPlacementSourceIndexesExist)
+        }
+        for shape in shapes {
+            try PanelValidation.shape(shape, field: TextConstants.Composition.tokenPlacedStraightEdgesInput)
+        }
+        return try placements.map { placement in
+            let segments = shapes[placement.sourceIndex].straightEdges.map {
+                RouteSegment(a: $0.a + placement.offset, b: $0.b + placement.offset)
+            }
+            try PanelValidation.validateContained(
+                segments.flatMap { [$0.a, $0.b] }, in: placement.bounds,
+                field: TextConstants.Composition.tokenPlacedStraightEdgesOutput)
+            return segments
+        }
     }
 
     /// EN: Full-panel V-score guides must stay in gaps for their entire length. Only emit a guide if no board
@@ -203,7 +239,7 @@ struct PanelCompositionLayout {
             for b in placements where b.row == a.row && b.column == a.column + 1 {
                 let x = (a.bounds.maxX + b.bounds.minX) / 2
                 if !placements.contains(where: { $0.bounds.minX < x - 1e-7 && $0.bounds.maxX > x + 1e-7 }),
-                    seen.insert("x\(x)").inserted
+                    seen.insert(TextConstants.Composition.tokenXTemplate(x)).inserted
                 {
                     result.append(
                         RouteSegment(a: RoutePoint(x: x, y: panelBounds.minY), b: RoutePoint(x: x, y: panelBounds.maxY))
@@ -220,7 +256,8 @@ struct PanelCompositionLayout {
                     RouteSegment(a: RoutePoint(x: panelBounds.minX, y: y), b: RoutePoint(x: panelBounds.maxX, y: y)))
             }
         }
-        try PanelValidation.validateContained(result.flatMap { [$0.a, $0.b] }, in: panelBounds, field: "guides.output")
+        try PanelValidation.validateContained(
+            result.flatMap { [$0.a, $0.b] }, in: panelBounds, field: TextConstants.Composition.tokenGuidesOutput)
         return result
     }
 }
@@ -260,12 +297,14 @@ enum PanelComposer {
         guard !sources.isEmpty && sources.count <= PanelLimits.maxBoardPositions else {
             throw RoutingError.invalid(
                 L10n.text(
-                    "Add a board file first.", "基板ファイルを追加してください。", "Fügen Sie zuerst eine Leiterplattendatei hinzu."))
+                    TextConstants.Composition.addABoardFileFirstEnglish,
+                    TextConstants.Composition.addABoardFileFirstJapanese,
+                    TextConstants.Composition.addABoardFileFirstGerman))
         }
         if sources.allSatisfy({ $0.kind == .eagle }) {
             let result = try EaglePanelEngine.compose(sources: sources, options: options)
             try validateExport(result.0, summary: result.1, options: options, kind: .eagle)
-            return (result.0, result.1, "brd")
+            return (result.0, result.1, TextConstants.Common.tokenBrd)
         }
         let converted = try sources.map { source -> Data in
             if source.kind == .kicad { return source.data }
@@ -274,7 +313,7 @@ enum PanelComposer {
         let result = try KiCadPanelEngine.compose(
             data: converted, options: options, baseIndex: sources.firstIndex(where: { $0.kind == .kicad }) ?? 0)
         try validateExport(result.0, summary: result.1, options: options, kind: .kicad)
-        return (result.0, result.1, "kicad_pcb")
+        return (result.0, result.1, TextConstants.Common.tokenKicadPcb)
     }
     /// EN: Reparse returned board data and compare reported dimensions with actual outline dimensions [mm].
     ///
@@ -293,7 +332,9 @@ enum PanelComposer {
             abs((b.maxX - b.minX) - summary.panelWidthMM) <= tolerance
                 && abs((b.maxY - b.minY) - summary.panelHeightMM) <= tolerance
         else {
-            throw PanelValidation.invalid("PanelComposer.output.summary", "matches serialized board outline")
+            throw PanelValidation.invalid(
+                TextConstants.Composition.tokenPanelComposerOutputSummary,
+                TextConstants.Composition.textMatchesSerializedBoardOutline)
         }
     }
 
@@ -310,17 +351,18 @@ enum KiCadImporter {
     static var executable: URL? {
         let fm = FileManager.default
         let homes = [
-            URL(fileURLWithPath: "/Applications"),
-            fm.homeDirectoryForCurrentUser.appendingPathComponent("Applications"),
+            URL(fileURLWithPath: TextConstants.Composition.systemApplicationsDirectory),
+            fm.homeDirectoryForCurrentUser.appendingPathComponent(TextConstants.Composition.applicationsFolderName),
         ]
         var candidates = homes.flatMap { home in
             [
-                home.appendingPathComponent("KiCad/KiCad.app/Contents/MacOS/kicad-cli"),
-                home.appendingPathComponent("KiCad.app/Contents/MacOS/kicad-cli"),
+                home.appendingPathComponent(TextConstants.Composition.tokenKiCadKiCadAppContentsMacOSKicadCli),
+                home.appendingPathComponent(TextConstants.Composition.tokenKiCadAppContentsMacOSKicadCli),
             ]
         }
         candidates += [
-            URL(fileURLWithPath: "/opt/homebrew/bin/kicad-cli"), URL(fileURLWithPath: "/usr/local/bin/kicad-cli"),
+            URL(fileURLWithPath: TextConstants.Composition.tokenOptHomebrewBinKicadCli),
+            URL(fileURLWithPath: TextConstants.Composition.tokenUsrLocalBinKicadCli),
         ]
         return candidates.first { fm.isExecutableFile(atPath: $0.path) }
     }
@@ -357,26 +399,29 @@ enum KiCadImporter {
         guard let executable else {
             throw RoutingError.invalid(
                 L10n.text(
-                    "Combining EAGLE and KiCad boards requires KiCad 10 or later. Install KiCad in Applications, then export again.",
-                    "EAGLEとKiCadの混在面付けにはKiCad 10以降が必要です。アプリケーションフォルダーにKiCadをインストールして、再度出力してください。",
-                    "Zum Kombinieren von EAGLE- und KiCad-Leiterplatten ist KiCad 10 oder neuer erforderlich. Installieren Sie KiCad im Ordner Programme und exportieren Sie erneut."
+                    TextConstants.Composition.combiningEAGLEAndKiCadBoardsRequiresKiCadOrLaterEnglish,
+                    TextConstants.Composition.combiningEAGLEAndKiCadBoardsRequiresKiCadOrLaterJapanese,
+                    TextConstants.Composition.combiningEAGLEAndKiCadBoardsRequiresKiCadOrLaterGerman
                 ))
         }
         let fm = FileManager.default
         let work = fm.temporaryDirectory.appendingPathComponent(
-            "SwiftPCBPanelizer-import-" + UUID().uuidString, isDirectory: true)
+            TextConstants.Composition.tokenSwiftPCBPanelizerImport + UUID().uuidString, isDirectory: true)
         try fm.createDirectory(at: work, withIntermediateDirectories: true)
         defer { try? fm.removeItem(at: work) }
-        let input = work.appendingPathComponent("source.brd"),
-            output = work.appendingPathComponent("converted.kicad_pcb")
+        let input = work.appendingPathComponent(TextConstants.Composition.tokenSourceBrd),
+            output = work.appendingPathComponent(TextConstants.Composition.tokenConvertedKicadPcb)
         try EaglePanelEngine.preparedForKiCadImport(data: source.data).write(to: input)
-        let log = work.appendingPathComponent("import.log")
+        let log = work.appendingPathComponent(TextConstants.Composition.tokenImportLog)
         fm.createFile(atPath: log.path, contents: nil)
         let handle = try FileHandle(forWritingTo: log)
         defer { try? handle.close() }
         let process = Process()
         process.executableURL = executable
-        process.arguments = ["pcb", "import", "--format", "eagle", "--output", output.path, input.path]
+        process.arguments = [
+            TextConstants.Common.tokenPcb, TextConstants.Composition.tokenImport, TextConstants.Composition.tokenFormat,
+            TextConstants.Common.tokenEagle, TextConstants.Common.tokenOutput, output.path, input.path,
+        ]
         process.standardOutput = handle
         process.standardError = handle
         let finished = DispatchSemaphore(value: 0)
@@ -386,16 +431,20 @@ enum KiCadImporter {
             terminateAndWait(process, finished: finished)
             throw RoutingError.invalid(
                 L10n.text(
-                    "KiCad took too long to import \(source.name).", "\(source.name) のKiCad変換がタイムアウトしました。",
-                    "Zeitüberschreitung beim KiCad-Import von \(source.name)."))
+                    TextConstants.Composition.kicadTookTooLongToImportSourceNameEnglishTemplate(source.name),
+                    TextConstants.Composition.kicadTookTooLongToImportSourceNameJapaneseTemplate(source.name),
+                    TextConstants.Composition.kicadTookTooLongToImportSourceNameGermanTemplate(source.name)))
         }
         guard process.terminationStatus == 0, fm.fileExists(atPath: output.path) else {
-            let reason = (try? String(contentsOf: log, encoding: .utf8)) ?? ""
+            let reason = (try? String(contentsOf: log, encoding: .utf8)) ?? TextConstants.Common.empty
             throw RoutingError.invalid(
                 L10n.text(
-                    "Cannot convert \(source.name). KiCad 10 or later with pcb import support is required.\n\(reason.suffix(2000))",
-                    "\(source.name) を変換できません。pcb import対応のKiCad 10以降が必要です。\n\(reason.suffix(2000))",
-                    "\(source.name) kann nicht konvertiert werden. Erforderlich ist KiCad 10 oder neuer mit Unterstützung für pcb import.\n\(reason.suffix(2000))"
+                    TextConstants.Composition.cannotConvertSourceNameKiCadOrLaterWithPcbEnglishTemplate(
+                        source.name, reason.suffix(2000)),
+                    TextConstants.Composition.cannotConvertSourceNameKiCadOrLaterWithPcbJapaneseTemplate(
+                        source.name, reason.suffix(2000)),
+                    TextConstants.Composition.cannotConvertSourceNameKiCadOrLaterWithPcbGermanTemplate(
+                        source.name, reason.suffix(2000))
                 ))
         }
         let converted = try Data(contentsOf: output)

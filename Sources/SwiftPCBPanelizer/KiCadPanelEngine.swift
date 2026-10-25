@@ -25,14 +25,26 @@ SOFTWARE.
 
 import Foundation
 
+// EN: String/character literals are defined in TextConstants.KiCad, Common and Characters; variable text uses constant templates.
+// JA: 文字列・文字リテラルはTextConstants.KiCad・Common・Charactersに定義し、可変文は定数テンプレートから生成する。
+// DE: Zeichenketten-/Zeichenliterale stehen in TextConstants.KiCad, Common und Characters; variable Texte nutzen konstante Vorlagen.
+
 enum KiCadPanelEngine {
     private static let geometryHeads: Set<String> = [
-        "footprint", "segment", "via", "arc", "zone", "gr_line", "gr_arc", "gr_rect",
-        "gr_poly", "gr_circle", "gr_curve", "gr_text", "gr_text_box", "dimension", "target", "image", "group",
-        "table", "barcode", "point", "generated",
+        TextConstants.KiCad.tokenFootprint, TextConstants.KiCad.tokenSegment, TextConstants.KiCad.tokenVia,
+        TextConstants.KiCad.tokenArc, TextConstants.KiCad.tokenZone, TextConstants.KiCad.tokenGrLine,
+        TextConstants.KiCad.tokenGrArc, TextConstants.KiCad.tokenGrRect,
+        TextConstants.KiCad.tokenGrPoly, TextConstants.KiCad.tokenGrCircle, TextConstants.KiCad.tokenGrCurve,
+        TextConstants.KiCad.tokenGrText, TextConstants.KiCad.tokenGrTextBox, TextConstants.KiCad.tokenDimension,
+        TextConstants.KiCad.tokenTarget, TextConstants.KiCad.tokenImage, TextConstants.KiCad.tokenGroup,
+        TextConstants.KiCad.tokenTable, TextConstants.KiCad.tokenBarcode, TextConstants.KiCad.tokenPoint,
+        TextConstants.KiCad.tokenGenerated,
     ]
     private static let coordinateHeads: Set<String> = [
-        "at", "start", "end", "mid", "center", "xy", "xy1", "xy2", "origin", "position",
+        TextConstants.KiCad.tokenAt, TextConstants.KiCad.tokenStart, TextConstants.KiCad.tokenEnd,
+        TextConstants.KiCad.tokenMid, TextConstants.KiCad.tokenCenter, TextConstants.KiCad.tokenXy,
+        TextConstants.KiCad.tokenXy1, TextConstants.KiCad.tokenXy2, TextConstants.KiCad.tokenOrigin,
+        TextConstants.KiCad.tokenPosition,
     ]
 
     /// EN: Validate KiCad input and settings, then return copied data and dimensions. Keep footprint coordinates
@@ -48,8 +60,9 @@ enum KiCadPanelEngine {
         guard options.columns > 0, options.rows > 0 else {
             throw KiCadPanelError.invalidBoard(
                 L10n.text(
-                    "Columns and rows must be at least one.", "列数と行数は1以上にしてください。",
-                    "Spalten- und Zeilenanzahl müssen mindestens 1 betragen."))
+                    TextConstants.Common.columnsAndRowsMustBeAtLeastOneEnglish,
+                    TextConstants.KiCad.columnsAndRowsMustBeAtLeastOneJapanese,
+                    TextConstants.Common.columnsAndRowsMustBeAtLeastOneGerman))
         }
         let measurements = [
             options.columnGapMM, options.rowGapMM, options.horizontalFrameMM,
@@ -59,15 +72,20 @@ enum KiCadPanelEngine {
         guard measurements.allSatisfy({ $0 >= 0 }), !options.addMountingHoles || options.mountingHoleDrillMM > 0 else {
             throw KiCadPanelError.invalidBoard(
                 L10n.text(
-                    "Spacing and frame widths must be nonnegative; the drill diameter must be positive.",
-                    "間隔と外枠は0以上、ドリル径は0より大きくしてください。",
-                    "Abstände und Rahmenbreiten müssen mindestens 0 betragen; der Bohrdurchmesser muss größer als 0 sein."
+                    TextConstants.KiCad.spacingAndFrameWidthsMustBeNonnegativeTheDrillEnglish,
+                    TextConstants.KiCad.spacingAndFrameWidthsMustBeNonnegativeTheDrillJapanese,
+                    TextConstants.KiCad.spacingAndFrameWidthsMustBeNonnegativeTheDrillGerman
                 ))
         }
         let boardOutline = root.compactMap { expression -> [BoardPoint]? in
             guard let head = expression.head,
-                ["gr_line", "gr_arc", "gr_rect", "gr_poly", "gr_circle", "gr_curve"].contains(head),
-                expression.directList("layer")?.scalar(at: 1) == "Edge.Cuts"
+                [
+                    TextConstants.KiCad.tokenGrLine, TextConstants.KiCad.tokenGrArc, TextConstants.KiCad.tokenGrRect,
+                    TextConstants.KiCad.tokenGrPoly, TextConstants.KiCad.tokenGrCircle,
+                    TextConstants.KiCad.tokenGrCurve,
+                ].contains(head),
+                expression.directList(TextConstants.Common.tokenLayer)?.scalar(at: 1)
+                    == TextConstants.KiCad.tokenEdgeCuts
             else { return nil }
             return geometryPoints(expression)
         }.flatMap { $0 }
@@ -91,16 +109,31 @@ enum KiCadPanelEngine {
             routed
             ? try PanelRouting.plan(
                 contours: PanelRouting.closedLoops(
-                    root.filter { $0.directList("layer")?.scalar(at: 1) == "Edge.Cuts" }.flatMap {
+                    root.filter {
+                        $0.directList(TextConstants.Common.tokenLayer)?.scalar(at: 1)
+                            == TextConstants.KiCad.tokenEdgeCuts
+                    }.flatMap {
                         try routingSegments($0)
-                    }), bounds: RouteRect(minX: minX, minY: minY, maxX: maxX, maxY: maxY), options: options)
+                    }), bounds: RouteRect(minX: minX, minY: minY, maxX: maxX, maxY: maxY), options: options,
+                straightEdges: root.filter {
+                    $0.directList(TextConstants.Common.tokenLayer)?.scalar(at: 1) == TextConstants.KiCad.tokenEdgeCuts
+                        && [
+                            TextConstants.KiCad.tokenGrLine, TextConstants.KiCad.tokenGrRect,
+                            TextConstants.KiCad.tokenGrPoly,
+                        ].contains($0.head ?? TextConstants.Common.empty)
+                }.flatMap { try routingSegments($0) })
             : RoutingPlan(segments: [], mouseBites: [])
         let routedEdges = routingPlan.segments
 
         var rebuilt: [SExpression] = []
         var insertedGeometry = false
         for expression in root {
-            if routed && expression.directList("layer")?.scalar(at: 1) == "Edge.Cuts" { continue }
+            if routed
+                && expression.directList(TextConstants.Common.tokenLayer)?.scalar(at: 1)
+                    == TextConstants.KiCad.tokenEdgeCuts
+            {
+                continue
+            }
             guard let head = expression.head, geometryHeads.contains(head) else {
                 rebuilt.append(expression)
                 continue
@@ -111,10 +144,13 @@ enum KiCadPanelEngine {
                         var copy = expression.deepCopy()
                         let isOriginalCell = row == 0 && column == 0
                         translate(
-                            &copy, dx: Double(column) * xStep, dy: Double(row) * yStep, footprint: head == "footprint")
+                            &copy, dx: Double(column) * xStep, dy: Double(row) * yStep,
+                            footprint: head == TextConstants.KiCad.tokenFootprint)
                         if !isOriginalCell {
                             replaceUUIDs(&copy)
-                            if head == "footprint" { disambiguateReference(&copy, row: row + 1, column: column + 1) }
+                            if head == TextConstants.KiCad.tokenFootprint {
+                                disambiguateReference(&copy, row: row + 1, column: column + 1)
+                            }
                         }
                         rebuilt.append(copy)
                     }
@@ -129,10 +165,13 @@ enum KiCadPanelEngine {
                         var copy = expression.deepCopy()
                         let isOriginalCell = row == 0 && column == 0
                         translate(
-                            &copy, dx: Double(column) * xStep, dy: Double(row) * yStep, footprint: head == "footprint")
+                            &copy, dx: Double(column) * xStep, dy: Double(row) * yStep,
+                            footprint: head == TextConstants.KiCad.tokenFootprint)
                         if !isOriginalCell {
                             replaceUUIDs(&copy)
-                            if head == "footprint" { disambiguateReference(&copy, row: row + 1, column: column + 1) }
+                            if head == TextConstants.KiCad.tokenFootprint {
+                                disambiguateReference(&copy, row: row + 1, column: column + 1)
+                            }
                         }
                         rebuilt.append(copy)
                     }
@@ -143,8 +182,9 @@ enum KiCadPanelEngine {
         guard insertedGeometry else {
             throw KiCadPanelError.invalidBoard(
                 L10n.text(
-                    "No board items are available to duplicate.", "複製できる基板要素がありません。",
-                    "Es sind keine Leiterplattenelemente zum Duplizieren vorhanden."))
+                    TextConstants.KiCad.noBoardItemsAreAvailableToDuplicateEnglish,
+                    TextConstants.KiCad.noBoardItemsAreAvailableToDuplicateJapanese,
+                    TextConstants.KiCad.noBoardItemsAreAvailableToDuplicateGerman))
         }
         let outline = makeRectangle(
             minX: panelMinX, minY: panelMinY, maxX: panelMaxX, maxY: panelMaxY,
@@ -153,7 +193,7 @@ enum KiCadPanelEngine {
             rebuilt += routedEdges.map {
                 makeLine(
                     start: BoardPoint(x: $0.a.x, y: $0.a.y), end: BoardPoint(x: $0.b.x, y: $0.b.y),
-                    width: max(0.05, options.dimensionLineWidthMM), layer: "Edge.Cuts")
+                    width: max(0.05, options.dimensionLineWidthMM), layer: TextConstants.KiCad.tokenEdgeCuts)
             }
         } else if options.panelCornerRadiusMM > 0 && options.verticalFrameMM > 0 && options.horizontalFrameMM > 0 {
             let loop = try PanelRouting.roundedRectangle(
@@ -162,7 +202,7 @@ enum KiCadPanelEngine {
             rebuilt += PanelRouting.edges(loop).map {
                 makeLine(
                     start: BoardPoint(x: $0.a.x, y: $0.a.y), end: BoardPoint(x: $0.b.x, y: $0.b.y),
-                    width: max(0.05, options.dimensionLineWidthMM), layer: "Edge.Cuts")
+                    width: max(0.05, options.dimensionLineWidthMM), layer: TextConstants.KiCad.tokenEdgeCuts)
             }
         } else {
             rebuilt.append(outline)
@@ -174,7 +214,7 @@ enum KiCadPanelEngine {
                     rebuilt.append(
                         makeLine(
                             start: BoardPoint(x: x, y: panelMinY), end: BoardPoint(x: x, y: panelMaxY),
-                            width: options.vScoreLineWidthMM, layer: "Dwgs.User"))
+                            width: options.vScoreLineWidthMM, layer: TextConstants.KiCad.tokenDwgsUser))
                 }
             }
             if options.rows > 1 {
@@ -183,7 +223,7 @@ enum KiCadPanelEngine {
                     rebuilt.append(
                         makeLine(
                             start: BoardPoint(x: panelMinX, y: y), end: BoardPoint(x: panelMaxX, y: y),
-                            width: options.vScoreLineWidthMM, layer: "Dwgs.User"))
+                            width: options.vScoreLineWidthMM, layer: TextConstants.KiCad.tokenDwgsUser))
                 }
             }
         }
@@ -198,34 +238,37 @@ enum KiCadPanelEngine {
             ]
             var usedReferences = Set(
                 root.compactMap { footprint -> String? in
-                    guard footprint.head == "footprint" else { return nil }
-                    return footprint.directList("property").flatMap {
-                        $0.scalar(at: 1) == "Reference" ? $0.scalar(at: 2) : nil
+                    guard footprint.head == TextConstants.KiCad.tokenFootprint else { return nil }
+                    return footprint.directList(TextConstants.KiCad.tokenProperty).flatMap {
+                        $0.scalar(at: 1) == TextConstants.KiCad.referencePropertyName ? $0.scalar(at: 2) : nil
                     }
                 })
             for (index, point) in points.enumerated() {
                 var suffix = index + 1
-                while usedReferences.contains("PH\(suffix)") { suffix += 1 }
-                let reference = "PH\(suffix)"
+                while usedReferences.contains(TextConstants.KiCad.tokenPHTemplate(suffix)) { suffix += 1 }
+                let reference = TextConstants.KiCad.tokenPHTemplate(suffix)
                 usedReferences.insert(reference)
                 rebuilt.append(makeMountingHole(at: point, diameter: options.mountingHoleDrillMM, reference: reference))
             }
         }
         var usedReferences = Set(
-            rebuilt.compactMap { $0.directList("property") }.filter { $0.scalar(at: 1) == "Reference" }.compactMap {
+            rebuilt.compactMap { $0.directList(TextConstants.KiCad.tokenProperty) }.filter {
+                $0.scalar(at: 1) == TextConstants.KiCad.referencePropertyName
+            }.compactMap {
                 $0.scalar(at: 2)
             })
         var biteIndex = 1
         for point in routingPlan.mouseBites {
-            while usedReferences.contains("PMB\(biteIndex)") { biteIndex += 1 }
-            let reference = "PMB\(biteIndex)"
+            while usedReferences.contains(TextConstants.KiCad.tokenPMBTemplate(biteIndex)) { biteIndex += 1 }
+            let reference = TextConstants.KiCad.tokenPMBTemplate(biteIndex)
             usedReferences.insert(reference)
             var hole = makeMountingHole(
                 at: BoardPoint(x: point.x, y: point.y), diameter: options.mouseBiteDiameterMM, reference: reference)
             if case .list(var items) = hole {
-                for i in items.indices where items[i].head == "property" {
+                for i in items.indices where items[i].head == TextConstants.KiCad.tokenProperty {
                     if case .list(var property) = items[i] {
-                        property.append(.list([.atom("hide"), .atom("yes")]))
+                        property.append(
+                            .list([.atom(TextConstants.KiCad.tokenHide), .atom(TextConstants.Common.tokenYes)]))
                         items[i] = .list(property)
                     }
                 }
@@ -239,7 +282,8 @@ enum KiCadPanelEngine {
             panelWidthMM: panelMaxX - panelMinX, panelHeightMM: panelMaxY - panelMinY,
             columns: options.columns, rows: options.rows, dimensionLineWidthMM: options.dimensionLineWidthMM)
         return try PanelValidation.output(
-            Data((SExpression.list(root).render() + "\n").utf8), summary: summary, options: options)
+            Data((SExpression.list(root).render() + TextConstants.Common.newline).utf8), summary: summary,
+            options: options)
     }
 
     /// EN: Validate UTF-8, size, trailing content, structure and numbers; return the kicad_pcb root's elements.
@@ -249,19 +293,23 @@ enum KiCadPanelEngine {
     /// DE: UTF-8, Größe, nachfolgenden Inhalt, Struktur und Zahlen prüfen; die Elemente der kicad_pcb-Wurzel
     ///     zurückgeben.
     private static func parseRoot(_ data: Data) throws -> [SExpression] {
-        try PanelValidation.document(data, field: "KiCadPanelEngine.parseRoot.input")
+        try PanelValidation.document(data, field: TextConstants.KiCad.tokenKiCadPanelEngineParseRootInput)
         guard let text = String(data: data, encoding: .utf8) else {
             throw KiCadPanelError.invalidBoard(
                 L10n.text(
-                    "The KiCad file is not valid UTF-8.", "KiCadファイルの文字コードが正しいUTF-8ではありません。",
-                    "Die KiCad-Datei ist nicht gültig UTF-8-kodiert."))
+                    TextConstants.KiCad.theKiCadFileIsNotValidUTFEnglish,
+                    TextConstants.KiCad.theKiCadFileIsNotValidUTFJapanese,
+                    TextConstants.KiCad.theKiCadFileIsNotValidUTFGerman))
         }
         var parser = SExpressionParser(text)
-        guard case .list(let root) = try parser.parseDocument(), root.first?.scalar == "kicad_pcb" else {
+        guard case .list(let root) = try parser.parseDocument(),
+            root.first?.scalar == TextConstants.Common.tokenKicadPcb
+        else {
             throw KiCadPanelError.invalidBoard(
                 L10n.text(
-                    "The kicad_pcb root element is missing.", "ルート要素kicad_pcbがありません。",
-                    "Das Wurzelelement kicad_pcb fehlt."))
+                    TextConstants.KiCad.theKicadPcbRootElementIsMissingEnglish,
+                    TextConstants.KiCad.theKicadPcbRootElementIsMissingJapanese,
+                    TextConstants.KiCad.theKicadPcbRootElementIsMissingGerman))
         }
         try validateGeometryNumbers(.list(root))
         return root
@@ -278,37 +326,47 @@ enum KiCadPanelEngine {
         guard case .list(let values) = expression else {
             return
         }
-        let name = expression.head ?? ""
+        let name = expression.head ?? TextConstants.Common.empty
         if coordinateHeads.contains(name), values.count >= 3, values[1].scalar != nil {
             guard let x = values[1].number, let y = values[2].number else {
-                throw PanelValidation.invalid("KiCad." + name, "numeric x/y coordinates")
+                throw PanelValidation.invalid(
+                    TextConstants.KiCad.tokenKiCad + name, TextConstants.KiCad.textNumericXYCoordinates)
             }
             try PanelRouting.validatePoints([RoutePoint(x: x, y: y)])
-            if name == "at", values.count > 3, let angle = values[3].number {
+            if name == TextConstants.KiCad.tokenAt, values.count > 3, let angle = values[3].number {
                 try PanelValidation.number(
-                    angle, field: "KiCad.at.angleDegrees",
+                    angle, field: TextConstants.KiCad.tokenKiCadAtAngleDegrees,
                     range: -PanelLimits.maxRotationDegrees...PanelLimits.maxRotationDegrees)
             }
         }
-        if ["size", "width", "thickness", "radius", "diameter"].contains(name) {
+        if [
+            TextConstants.Common.tokenSize, TextConstants.Common.tokenWidth, TextConstants.KiCad.tokenThickness,
+            TextConstants.Common.tokenRadius, TextConstants.Common.tokenDiameter,
+        ].contains(name) {
             for value in values.dropFirst() {
                 if let scalar = value.scalar {
                     guard let number = Double(scalar) else {
-                        throw PanelValidation.invalid("KiCad." + name, "numeric measurement")
+                        throw PanelValidation.invalid(
+                            TextConstants.KiCad.tokenKiCad + name, TextConstants.Common.textNumericMeasurement)
                     }
                     try PanelValidation.number(
-                        number, field: "KiCad." + name + "MM", range: 0...PanelLimits.maxMeasurementMM)
+                        number, field: TextConstants.KiCad.tokenKiCad + name + TextConstants.Common.tokenMM,
+                        range: 0...PanelLimits.maxMeasurementMM)
                 }
             }
         }
-        if name == "drill" {
-            let dimensions = values.dropFirst().filter { $0.scalar != "oval" && $0.scalar != nil }
+        if name == TextConstants.Common.tokenDrill {
+            let dimensions = values.dropFirst().filter {
+                $0.scalar != TextConstants.KiCad.tokenOval && $0.scalar != nil
+            }
             for value in dimensions {
                 guard let number = value.number else {
-                    throw PanelValidation.invalid("KiCad.drill", "numeric diameter")
+                    throw PanelValidation.invalid(
+                        TextConstants.KiCad.tokenKiCadDrill, TextConstants.KiCad.textNumericDiameter)
                 }
                 try PanelValidation.number(
-                    number, field: "KiCad.drillMM", range: Double.leastNonzeroMagnitude...PanelLimits.maxMeasurementMM)
+                    number, field: TextConstants.KiCad.tokenKiCadDrillMM,
+                    range: Double.leastNonzeroMagnitude...PanelLimits.maxMeasurementMM)
             }
         }
         for child in values {
@@ -327,28 +385,46 @@ enum KiCadPanelEngine {
     static func normalizeLayers(data: Data, repairImportedAnnotations: Bool = false) throws -> Data {
         var root = try parseRoot(data)
         var rows: [SExpression] = []
-        if case .list(let table) = root.first(where: { $0.head == "layers" }) { rows = Array(table.dropFirst()) }
-        let undefined: Set<String> = ["UNDEFINED", "Undefined", "Rescue", "UNSELECTED", "", "-1"]
-        rows.removeAll { undefined.contains($0.scalar(at: 1) ?? "") }
+        if case .list(let table) = root.first(where: { $0.head == TextConstants.Common.tokenLayers }) {
+            rows = Array(table.dropFirst())
+        }
+        let undefined: Set<String> = [
+            TextConstants.KiCad.tokenUNDEFINED, TextConstants.KiCad.tokenUndefined, TextConstants.KiCad.tokenRescue,
+            TextConstants.KiCad.tokenUNSELECTED, TextConstants.Common.empty, TextConstants.KiCad.numberMinus1,
+        ]
+        rows.removeAll { undefined.contains($0.scalar(at: 1) ?? TextConstants.Common.empty) }
         var declared = Set(rows.compactMap { $0.scalar(at: 1) })
         var aliases: [String: String] = [
-            "User.Drawings": "Dwgs.User", "User.Comments": "Cmts.User", "User.Eco1": "Eco1.User",
-            "User.Eco2": "Eco2.User",
-            "F.Silkscreen": "F.SilkS", "B.Silkscreen": "B.SilkS", "F.Adhesive": "F.Adhes", "B.Adhesive": "B.Adhes",
-            "F.Courtyard": "F.CrtYd", "B.Courtyard": "B.CrtYd",
+            TextConstants.KiCad.tokenUserDrawings: TextConstants.KiCad.tokenDwgsUser,
+            TextConstants.KiCad.tokenUserComments: TextConstants.KiCad.tokenCmtsUser,
+            TextConstants.KiCad.tokenUserEco1: TextConstants.KiCad.tokenEco1User,
+            TextConstants.KiCad.tokenUserEco2: TextConstants.KiCad.tokenEco2User,
+            TextConstants.KiCad.tokenFSilkscreen: TextConstants.KiCad.tokenFSilkS,
+            TextConstants.KiCad.tokenBSilkscreen: TextConstants.KiCad.tokenBSilkS,
+            TextConstants.KiCad.tokenFAdhesive: TextConstants.KiCad.tokenFAdhes,
+            TextConstants.KiCad.tokenBAdhesive: TextConstants.KiCad.tokenBAdhes,
+            TextConstants.KiCad.tokenFCourtyard: TextConstants.KiCad.tokenFCrtYd,
+            TextConstants.KiCad.tokenBCourtyard: TextConstants.KiCad.tokenBCrtYd,
         ]
         for row in rows {
             if let name = row.scalar(at: 1), let alias = row.scalar(at: 3), !alias.isEmpty, !declared.contains(alias) {
                 aliases[alias] = name
             }
         }
-        let modernIDs = rows.first(where: { $0.scalar(at: 1) == "B.Cu" })?.scalar(at: 0) == "2"
+        let modernIDs =
+            rows.first(where: { $0.scalar(at: 1) == TextConstants.KiCad.tokenBCu })?.scalar(at: 0)
+            == TextConstants.KiCad.number2
         let standard: [(String, Int, Int)] = [
-            ("F.Cu", 0, 0), ("B.Cu", 2, 31), ("F.Adhes", 9, 33), ("B.Adhes", 11, 32),
-            ("F.Paste", 13, 35), ("B.Paste", 15, 34), ("F.SilkS", 5, 37), ("B.SilkS", 7, 36),
-            ("F.Mask", 1, 39), ("B.Mask", 3, 38), ("Dwgs.User", 17, 40), ("Cmts.User", 19, 41),
-            ("Eco1.User", 21, 42), ("Eco2.User", 23, 43), ("Edge.Cuts", 25, 44), ("Margin", 27, 45),
-            ("F.CrtYd", 31, 47), ("B.CrtYd", 29, 46), ("F.Fab", 35, 49), ("B.Fab", 33, 48),
+            (TextConstants.KiCad.tokenFCu, 0, 0), (TextConstants.KiCad.tokenBCu, 2, 31),
+            (TextConstants.KiCad.tokenFAdhes, 9, 33), (TextConstants.KiCad.tokenBAdhes, 11, 32),
+            (TextConstants.KiCad.tokenFPaste, 13, 35), (TextConstants.KiCad.tokenBPaste, 15, 34),
+            (TextConstants.KiCad.tokenFSilkS, 5, 37), (TextConstants.KiCad.tokenBSilkS, 7, 36),
+            (TextConstants.KiCad.tokenFMask, 1, 39), (TextConstants.KiCad.tokenBMask, 3, 38),
+            (TextConstants.KiCad.tokenDwgsUser, 17, 40), (TextConstants.KiCad.tokenCmtsUser, 19, 41),
+            (TextConstants.KiCad.tokenEco1User, 21, 42), (TextConstants.KiCad.tokenEco2User, 23, 43),
+            (TextConstants.KiCad.tokenEdgeCuts, 25, 44), (TextConstants.KiCad.tokenMargin, 27, 45),
+            (TextConstants.KiCad.tokenFCrtYd, 31, 47), (TextConstants.KiCad.tokenBCrtYd, 29, 46),
+            (TextConstants.KiCad.tokenFFab, 35, 49), (TextConstants.KiCad.tokenBFab, 33, 48),
         ]
         /// EN: Check or add required layer definitions. Throw on conflicting definition numbers.
         ///
@@ -359,31 +435,45 @@ enum KiCadPanelEngine {
         func ensure(_ name: String) throws {
             if declared.contains(name) { return }
             var number: Int?
-            if let entry = standard.first(where: { $0.0 == name }), !name.hasSuffix(".Cu") {
+            if let entry = standard.first(where: { $0.0 == name }),
+                !name.hasSuffix(TextConstants.KiCad.copperLayerSuffix)
+            {
                 number = modernIDs ? entry.1 : entry.2
             }
-            if name.hasPrefix("User."), let index = Int(name.dropFirst(5)), (1...9).contains(index) {
+            if name.hasPrefix(TextConstants.KiCad.userLayerPrefix), let index = Int(name.dropFirst(5)),
+                (1...9).contains(index)
+            {
                 number = modernIDs ? 39 + (index - 1) * 2 : 50 + index - 1
             }
             guard let number, !rows.contains(where: { $0.scalar(at: 0) == String(number) }) else {
                 throw KiCadPanelError.invalidBoard(
                     L10n.text(
-                        "The layer \(name) is missing from the board's layer definitions or its ID conflicts with another layer.",
-                        "レイヤー\(name)の定義がないか、レイヤー番号が別の定義と衝突しています。",
-                        "Der Layer \(name) fehlt in der Layerdefinition der Leiterplatte oder seine ID steht im Konflikt mit einem anderen Layer."
+                        TextConstants.KiCad.theLayerNameIsMissingFromTheBoardLayerEnglishTemplate(name),
+                        TextConstants.KiCad.theLayerNameIsMissingFromTheBoardLayerJapaneseTemplate(name),
+                        TextConstants.KiCad.theLayerNameIsMissingFromTheBoardLayerGermanTemplate(name)
                     ))
             }
-            rows.append(.list([.atom(String(number)), .string(name), .atom("user")]))
+            rows.append(.list([.atom(String(number)), .string(name), .atom(TextConstants.KiCad.userTextKind)]))
             declared.insert(name)
         }
         let graphicHeads: Set<String> = [
-            "property", "fp_text", "fp_text_box", "fp_line", "fp_arc", "fp_rect", "fp_poly", "fp_circle", "fp_curve",
-            "gr_text", "gr_text_box", "gr_line", "gr_arc", "gr_rect", "gr_poly", "gr_circle", "gr_curve", "dimension",
-            "target", "image", "table", "table_cell", "barcode",
+            TextConstants.KiCad.tokenProperty, TextConstants.KiCad.tokenFpText, TextConstants.KiCad.tokenFpTextBox,
+            TextConstants.KiCad.tokenFpLine, TextConstants.KiCad.tokenFpArc, TextConstants.KiCad.tokenFpRect,
+            TextConstants.KiCad.tokenFpPoly, TextConstants.KiCad.tokenFpCircle, TextConstants.KiCad.tokenFpCurve,
+            TextConstants.KiCad.tokenGrText, TextConstants.KiCad.tokenGrTextBox, TextConstants.KiCad.tokenGrLine,
+            TextConstants.KiCad.tokenGrArc, TextConstants.KiCad.tokenGrRect, TextConstants.KiCad.tokenGrPoly,
+            TextConstants.KiCad.tokenGrCircle, TextConstants.KiCad.tokenGrCurve, TextConstants.KiCad.tokenDimension,
+            TextConstants.KiCad.tokenTarget, TextConstants.KiCad.tokenImage, TextConstants.KiCad.tokenTable,
+            TextConstants.KiCad.tokenTableCell, TextConstants.KiCad.tokenBarcode,
         ]
-        let electricalHeads: Set<String> = ["segment", "arc", "via", "pad", "zone", "padstack"]
+        let electricalHeads: Set<String> = [
+            TextConstants.KiCad.tokenSegment, TextConstants.KiCad.tokenArc, TextConstants.KiCad.tokenVia,
+            TextConstants.KiCad.tokenPad, TextConstants.KiCad.tokenZone, TextConstants.KiCad.tokenPadstack,
+        ]
         let layerMasks: Set<String> = [
-            "*.Cu", "*In.Cu", "F&B.Cu", "*.Adhes", "*.Paste", "*.Mask", "*.SilkS", "*.Fab", "*.CrtYd",
+            TextConstants.KiCad.allCopperLayers, TextConstants.KiCad.tokenInCu, TextConstants.KiCad.tokenFBCu,
+            TextConstants.KiCad.tokenAdhes, TextConstants.KiCad.tokenPaste, TextConstants.KiCad.tokenMask,
+            TextConstants.KiCad.tokenSilkS, TextConstants.KiCad.tokenFab, TextConstants.KiCad.tokenCrtYd,
         ]
         /// EN: Recursively validate S-expression layer references. Apply distinct repair rules to electrical and
         ///     annotation items.
@@ -393,45 +483,66 @@ enum KiCadPanelEngine {
         /// DE: Lagenverweise in S-Ausdrücken rekursiv prüfen. Für elektrische Elemente und Beschriftungen
         ///     unterschiedliche Korrekturregeln anwenden.
         func walk(
-            _ expression: inout SExpression, owner: String = "", field: String? = nil, back: Bool = false,
+            _ expression: inout SExpression, owner: String = TextConstants.Common.empty, field: String? = nil,
+            back: Bool = false,
             electrical: Bool = false
         ) throws {
             guard case .list(var values) = expression, let head = values.first?.scalar else { return }
             let isElectrical = electrical || electricalHeads.contains(head)
-            let side = head == "footprint" ? values.first(where: { $0.head == "layer" })?.scalar(at: 1) == "B.Cu" : back
-            let fieldName = head == "property" || head == "fp_text" ? values.dropFirst().first?.scalar : field
-            if repairImportedAnnotations, ["property", "fp_text", "fp_text_box"].contains(head),
-                !values.contains(where: { $0.head == "layer" })
+            let side =
+                head == TextConstants.KiCad.tokenFootprint
+                ? values.first(where: { $0.head == TextConstants.Common.tokenLayer })?.scalar(at: 1)
+                    == TextConstants.KiCad.tokenBCu : back
+            let fieldName =
+                head == TextConstants.KiCad.tokenProperty || head == TextConstants.KiCad.tokenFpText
+                ? values.dropFirst().first?.scalar : field
+            if repairImportedAnnotations,
+                [
+                    TextConstants.KiCad.tokenProperty, TextConstants.KiCad.tokenFpText,
+                    TextConstants.KiCad.tokenFpTextBox,
+                ].contains(head),
+                !values.contains(where: { $0.head == TextConstants.Common.tokenLayer })
             {
-                let reference = fieldName == "Reference" || fieldName == "reference"
-                let layer = reference ? (side ? "B.SilkS" : "F.SilkS") : (side ? "B.Fab" : "F.Fab")
-                values.append(.list([.atom("layer"), .string(layer)]))
+                let reference =
+                    fieldName == TextConstants.KiCad.referencePropertyName
+                    || fieldName == TextConstants.KiCad.referenceTextKind
+                let layer =
+                    reference
+                    ? (side ? TextConstants.KiCad.tokenBSilkS : TextConstants.KiCad.tokenFSilkS)
+                    : (side ? TextConstants.KiCad.tokenBFab : TextConstants.KiCad.tokenFFab)
+                values.append(.list([.atom(TextConstants.Common.tokenLayer), .string(layer)]))
             }
-            if head == "layer" || head == "layers" {
+            if head == TextConstants.Common.tokenLayer || head == TextConstants.Common.tokenLayers {
                 let indices =
-                    head == "layer" ? Array(values.indices.dropFirst().prefix(1)) : Array(values.indices.dropFirst())
+                    head == TextConstants.Common.tokenLayer
+                    ? Array(values.indices.dropFirst().prefix(1)) : Array(values.indices.dropFirst())
                 for index in indices {
                     guard let old = values[index].scalar else { continue }
                     var name = declared.contains(old) ? old : aliases[old] ?? old
-                    if layerMasks.contains(name) && head == "layers" { continue }
-                    if name == "Inner" && owner == "padstack" { continue }
+                    if layerMasks.contains(name) && head == TextConstants.Common.tokenLayers { continue }
+                    if name == TextConstants.KiCad.tokenInner && owner == TextConstants.KiCad.tokenPadstack { continue }
                     if undefined.contains(name) && repairImportedAnnotations && !isElectrical
                         && graphicHeads.contains(owner)
                     {
-                        if fieldName == "Reference" || fieldName == "reference" {
-                            name = side ? "B.SilkS" : "F.SilkS"
-                        } else if fieldName == "Value" || fieldName == "value" || owner == "property" {
-                            name = side ? "B.Fab" : "F.Fab"
+                        if fieldName == TextConstants.KiCad.referencePropertyName
+                            || fieldName == TextConstants.KiCad.referenceTextKind
+                        {
+                            name = side ? TextConstants.KiCad.tokenBSilkS : TextConstants.KiCad.tokenFSilkS
+                        } else if fieldName == TextConstants.KiCad.tokenValue
+                            || fieldName == TextConstants.Common.tokenValue
+                            || owner == TextConstants.KiCad.tokenProperty
+                        {
+                            name = side ? TextConstants.KiCad.tokenBFab : TextConstants.KiCad.tokenFFab
                         } else {
-                            name = "Cmts.User"
+                            name = TextConstants.KiCad.tokenCmtsUser
                         }
                     }
                     if undefined.contains(name) {
                         throw KiCadPanelError.invalidBoard(
                             L10n.text(
-                                "An item of type \(owner) uses an undefined layer (\(old)). Its physical layer must be assigned before exporting the panel.",
-                                "\(owner)要素に未定義レイヤー（\(old)）があります。基板上の所属レイヤーを指定してから出力してください。",
-                                "Ein Element vom Typ \(owner) verwendet einen undefinierten Layer (\(old)). Weisen Sie ihm vor dem Export die richtige Lage auf der Leiterplatte zu."
+                                TextConstants.KiCad.anItemOfTypeOwnerUsesAnUndefinedLayerEnglishTemplate(owner, old),
+                                TextConstants.KiCad.anItemOfTypeOwnerUsesAnUndefinedLayerJapaneseTemplate(owner, old),
+                                TextConstants.KiCad.anItemOfTypeOwnerUsesAnUndefinedLayerGermanTemplate(owner, old)
                             ))
                     }
                     try ensure(name)
@@ -445,7 +556,7 @@ enum KiCadPanelEngine {
             }
             expression = .list(values)
         }
-        for index in root.indices where geometryHeads.contains(root[index].head ?? "") {
+        for index in root.indices where geometryHeads.contains(root[index].head ?? TextConstants.Common.empty) {
             try walk(&root[index])
         }
         // EN: A stackup and custom layer references must follow the layer table. Keep metadata in its original order
@@ -453,13 +564,17 @@ enum KiCadPanelEngine {
         // JA: 積層構成とカスタムレイヤー参照はレイヤー表より後に置く必要がある。メタデータの順序を維持し、setupより前にレイヤー表を置く。
         // DE: Lagenaufbau und benutzerdefinierte Lagenverweise müssen auf die Lagentabelle folgen. Die
         //     Metadatenreihenfolge beibehalten und die Tabelle vor setup einfügen.
-        root.removeAll { $0.head == "layers" }
+        root.removeAll { $0.head == TextConstants.Common.tokenLayers }
         let insertion =
-            root.firstIndex { $0.head == "setup" || geometryHeads.contains($0.head ?? "") || $0.head == "net" }
+            root.firstIndex {
+                $0.head == TextConstants.KiCad.tokenSetup
+                    || geometryHeads.contains($0.head ?? TextConstants.Common.empty)
+                    || $0.head == TextConstants.KiCad.tokenNet
+            }
             ?? root.count
-        root.insert(.list([.atom("layers")] + rows), at: insertion)
-        let result = Data((SExpression.list(root).render() + "\n").utf8)
-        try PanelValidation.document(result, field: "normalizeLayers.output")
+        root.insert(.list([.atom(TextConstants.Common.tokenLayers)] + rows), at: insertion)
+        let result = Data((SExpression.list(root).render() + TextConstants.Common.newline).utf8)
+        try PanelValidation.document(result, field: TextConstants.KiCad.tokenNormalizeLayersOutput)
         return result
     }
 
@@ -469,23 +584,32 @@ enum KiCadPanelEngine {
     ///
     /// DE: Edge.Cuts parsen und das zurückgegebene Begrenzungsrechteck [mm] sowie geschlossene Konturen prüfen.
     private static func shape(root: [SExpression]) throws -> PanelBoardShape {
-        let loops = try PanelRouting.closedLoops(
-            root.filter { $0.directList("layer")?.scalar(at: 1) == "Edge.Cuts" }.flatMap { try routingSegments($0) })
+        let outline = root.filter {
+            $0.directList(TextConstants.Common.tokenLayer)?.scalar(at: 1) == TextConstants.KiCad.tokenEdgeCuts
+        }
+        let loops = try PanelRouting.closedLoops(outline.flatMap { try routingSegments($0) })
+        let straightEdges = try outline.filter {
+            [TextConstants.KiCad.tokenGrLine, TextConstants.KiCad.tokenGrRect, TextConstants.KiCad.tokenGrPoly]
+                .contains($0.head ?? TextConstants.Common.empty)
+        }.flatMap { try routingSegments($0) }
         let points = loops.flatMap { $0 }
         // EN: Arc cardinal points retain exact array dimensions; tessellated contours are used only for routing and
         //     have a maximum 0.005 mm chord deviation.
         // JA: 円弧の極値点で配列の正確な寸法を保持する。加工線だけに使う近似輪郭の最大弦誤差は0.005 mm。
         // DE: Kreisbogenextrema erhalten die exakten Array-Abmessungen. Polygonal angenäherte Konturen dienen nur dem
         //     Fräsen; die maximale Sehnenabweichung beträgt 0,005 mm.
-        let measurements = root.filter { $0.directList("layer")?.scalar(at: 1) == "Edge.Cuts" }.flatMap {
+        let measurements = root.filter {
+            $0.directList(TextConstants.Common.tokenLayer)?.scalar(at: 1) == TextConstants.KiCad.tokenEdgeCuts
+        }.flatMap {
             geometryPoints($0)
         }
         guard !points.isEmpty, !measurements.isEmpty else { throw KiCadPanelError.noEdgeCuts }
         let result = PanelBoardShape(
             bounds: RouteRect(
                 minX: measurements.map(\.x).min()!, minY: measurements.map(\.y).min()!,
-                maxX: measurements.map(\.x).max()!, maxY: measurements.map(\.y).max()!), contours: loops)
-        try PanelValidation.shape(result, field: "KiCadPanelEngine.shape.output")
+                maxX: measurements.map(\.x).max()!, maxY: measurements.map(\.y).max()!), contours: loops,
+            straightEdges: straightEdges)
+        try PanelValidation.shape(result, field: TextConstants.KiCad.tokenKiCadPanelEngineShapeOutput)
         return result
     }
 
@@ -513,29 +637,37 @@ enum KiCadPanelEngine {
         /// DE: Beim Einlesen geprüfte at-Koordinaten [mm] zurückgeben. Bei fehlender Angabe den formatseitigen
         ///     Standardursprung verwenden.
         func position(_ expression: SExpression) -> RoutePoint {
-            let at = expression.directList("at")
+            let at = expression.directList(TextConstants.KiCad.tokenAt)
             return RoutePoint(
                 x: at?.scalar(at: 1).flatMap(Double.init) ?? 0, y: at?.scalar(at: 2).flatMap(Double.init) ?? 0)
         }
         for item in root {
-            if item.head == "via", let diameter = item.directList("drill")?.scalar(at: 1).flatMap(Double.init),
+            if item.head == TextConstants.KiCad.tokenVia,
+                let diameter = item.directList(TextConstants.Common.tokenDrill)?.scalar(at: 1).flatMap(Double.init),
                 diameter > 0
             {
-                let layers = item.directList("layers")
-                let front = layers?.scalar(at: 1) == "F.Cu" || layers?.scalar(at: 2) == "F.Cu"
-                let back = layers?.scalar(at: 1) == "B.Cu" || layers?.scalar(at: 2) == "B.Cu"
+                let layers = item.directList(TextConstants.Common.tokenLayers)
+                let front =
+                    layers?.scalar(at: 1) == TextConstants.KiCad.tokenFCu
+                    || layers?.scalar(at: 2) == TextConstants.KiCad.tokenFCu
+                let back =
+                    layers?.scalar(at: 1) == TextConstants.KiCad.tokenBCu
+                    || layers?.scalar(at: 2) == TextConstants.KiCad.tokenBCu
                 result.append(
                     PanelPreviewDrill(
                         center: position(item), width: diameter, height: diameter, angle: 0, front: front, back: back))
             }
-            guard item.head == "footprint", case .list(let fields) = item else { continue }
+            guard item.head == TextConstants.KiCad.tokenFootprint, case .list(let fields) = item else { continue }
             let origin = position(item)
-            let degrees = item.directList("at")?.scalar(at: 3).flatMap(Double.init) ?? 0
+            let degrees = item.directList(TextConstants.KiCad.tokenAt)?.scalar(at: 3).flatMap(Double.init) ?? 0
             let radians = -degrees * .pi / 180
             for pad in fields
-            where pad.head == "pad" && ["thru_hole", "np_thru_hole"].contains(pad.scalar(at: 2) ?? "") {
-                guard case .list(let drill) = pad.directList("drill") else { continue }
-                let oval = drill.count > 1 && drill[1].scalar == "oval"
+            where pad.head == TextConstants.KiCad.tokenPad
+                && [TextConstants.KiCad.tokenThruHole, TextConstants.KiCad.tokenNpThruHole].contains(
+                    pad.scalar(at: 2) ?? TextConstants.Common.empty)
+            {
+                guard case .list(let drill) = pad.directList(TextConstants.Common.tokenDrill) else { continue }
+                let oval = drill.count > 1 && drill[1].scalar == TextConstants.KiCad.tokenOval
                 let start = oval ? 2 : 1
                 guard drill.indices.contains(start), let width = drill[start].number, width > 0 else { continue }
                 let height = oval && drill.indices.contains(start + 1) ? (drill[start + 1].number ?? width) : width
@@ -551,7 +683,7 @@ enum KiCadPanelEngine {
                 // DE: Pad-Positionen sind relativ zum Footprint; Pad-Winkel im Platinenformat sind absolut.
                 //     Bohrungsversätze verschieben die Kupferform, während die Bohrung an der Pad-Ankerposition
                 //     bleibt.
-                let angle = -(pad.directList("at")?.scalar(at: 3).flatMap(Double.init) ?? 0)
+                let angle = -(pad.directList(TextConstants.KiCad.tokenAt)?.scalar(at: 3).flatMap(Double.init) ?? 0)
                 result.append(
                     PanelPreviewDrill(
                         center: center, width: width, height: height, angle: angle, front: true, back: true))
@@ -571,14 +703,16 @@ enum KiCadPanelEngine {
         let options = options.forSourceCount(data.count)
         guard !data.isEmpty && data.count <= PanelLimits.maxBoardPositions else {
             throw PanelValidation.invalid(
-                "KiCadPanelEngine.compose.data", "1...\(PanelLimits.maxBoardPositions) boards")
+                TextConstants.KiCad.tokenKiCadPanelEngineComposeData,
+                TextConstants.KiCad.textBoardsTemplate(PanelLimits.maxBoardPositions))
         }
         try PanelRouting.validate(options)
         let roots = try data.map { try parseRoot(normalizeLayers(data: $0)) }
         let shapes = try roots.map { try shape(root: $0) }
         let layout = try PanelCompositionLayout(bounds: shapes.map(\.bounds), options: options)
         let routing = try PanelRouting.plan(
-            boards: layout.placedContours(shapes), arrayBounds: layout.arrayBounds, options: options)
+            boards: layout.placedContours(shapes), arrayBounds: layout.arrayBounds, options: options,
+            straightEdges: layout.placedStraightEdges(shapes))
         guard roots.indices.contains(baseIndex) else { throw KiCadPanelError.noEdgeCuts }
         /// EN: Return copper layer names in front-to-back definition order. Compare these arrays to check layer
         ///     stacks.
@@ -588,33 +722,41 @@ enum KiCadPanelEngine {
         /// DE: Kupferlagennamen in definierter Reihenfolge von vorne nach hinten zurückgeben. Diese Arrays zum
         ///     Vergleich des Lagenaufbaus verwenden.
         func copperLayers(_ root: [SExpression]) -> [String] {
-            guard case .list(let table) = root.first(where: { $0.head == "layers" }) else { return [] }
-            return table.dropFirst().compactMap { $0.scalar(at: 1) }.filter { $0.hasSuffix(".Cu") }
+            guard case .list(let table) = root.first(where: { $0.head == TextConstants.Common.tokenLayers }) else {
+                return []
+            }
+            return table.dropFirst().compactMap { $0.scalar(at: 1) }.filter {
+                $0.hasSuffix(TextConstants.KiCad.copperLayerSuffix)
+            }
         }
         let stack = copperLayers(roots[baseIndex])
         guard roots.allSatisfy({ copperLayers($0) == stack }) else {
             throw KiCadPanelError.invalidBoard(
                 L10n.text(
-                    "All boards in one panel must have the same copper layer stack. Match the copper layer count and order before combining them.",
-                    "同じパネルに配置する基板は銅箔の層構成を揃えてください。銅箔の層数と順序が異なる基板は統合できません。",
-                    "Alle Leiterplatten in einem Nutzen müssen denselben Kupferlagenaufbau haben. Gleichen Sie vor dem Zusammenfügen die Anzahl und Reihenfolge der Kupferlagen an."
+                    TextConstants.KiCad.allBoardsInOnePanelMustHaveTheSameEnglish,
+                    TextConstants.KiCad.allBoardsInOnePanelMustHaveTheSameJapanese,
+                    TextConstants.KiCad.allBoardsInOnePanelMustHaveTheSameGerman
                 ))
         }
         let versions: [Int] = roots.map { root in
-            let node = root.first { $0.head == "version" }
-            return Int(node?.scalar(at: 1) ?? "0") ?? 0
+            let node = root.first { $0.head == TextConstants.KiCad.tokenVersion }
+            return Int(node?.scalar(at: 1) ?? TextConstants.Common.number0) ?? 0
         }
         let version = versions.max() ?? 20260206
         // EN: KiCad stopped serializing numeric net codes in format 20251028.
         // JA: KiCadは形式バージョン20251028から数値のネット番号を書き出さなくなった。
         // DE: Seit Formatversion 20251028 schreibt KiCad keine numerischen Netznummern mehr.
         let namedNets = version >= 20251028
-        let nonGeometry: Set<String> = ["net", "embedded_files", "embedded_fonts", "layers"]
+        let nonGeometry: Set<String> = [
+            TextConstants.KiCad.tokenNet, TextConstants.KiCad.tokenEmbeddedFiles,
+            TextConstants.KiCad.tokenEmbeddedFonts, TextConstants.Common.tokenLayers,
+        ]
         var output = roots[baseIndex].filter {
-            !geometryHeads.contains($0.head ?? "") && !nonGeometry.contains($0.head ?? "")
+            !geometryHeads.contains($0.head ?? TextConstants.Common.empty)
+                && !nonGeometry.contains($0.head ?? TextConstants.Common.empty)
         }
-        if let i = output.firstIndex(where: { $0.head == "version" }) {
-            output[i] = .list([.atom("version"), .atom(String(version))])
+        if let i = output.firstIndex(where: { $0.head == TextConstants.KiCad.tokenVersion }) {
+            output[i] = .list([.atom(TextConstants.KiCad.tokenVersion), .atom(String(version))])
         }
         // EN: Layer IDs changed between KiCad releases. Geometry uses layer names, so use the newest input's table
         //     while retaining the base board setup.
@@ -622,39 +764,48 @@ enum KiCadPanelEngine {
         // DE: Lagen-IDs unterscheiden sich zwischen KiCad-Versionen. Da die Geometrie Lagennamen verwendet, die
         //     Tabelle der neuesten Eingabe nutzen und die Einstellungen der Basisplatine beibehalten.
         let newest =
-            roots.firstIndex { root in root.first(where: { $0.head == "version" })?.scalar(at: 1) == String(version) }
+            roots.firstIndex { root in
+                root.first(where: { $0.head == TextConstants.KiCad.tokenVersion })?.scalar(at: 1) == String(version)
+            }
             ?? baseIndex
         var layerRows: [SExpression] = []
-        if case .list(let layers) = roots[newest].first(where: { $0.head == "layers" }) {
+        if case .list(let layers) = roots[newest].first(where: { $0.head == TextConstants.Common.tokenLayers }) {
             layerRows = Array(layers.dropFirst())
         }
         var layerNames = Set(layerRows.compactMap { $0.scalar(at: 1) })
         for root in roots {
-            if case .list(let table) = root.first(where: { $0.head == "layers" }) {
-                for row in table.dropFirst() where !layerNames.contains(row.scalar(at: 1) ?? "") {
+            if case .list(let table) = root.first(where: { $0.head == TextConstants.Common.tokenLayers }) {
+                for row in table.dropFirst() where !layerNames.contains(row.scalar(at: 1) ?? TextConstants.Common.empty)
+                {
                     guard !layerRows.contains(where: { $0.scalar(at: 0) == row.scalar(at: 0) }) else {
                         throw KiCadPanelError.invalidBoard(
                             L10n.text(
-                                "Custom layer IDs conflict between these boards. Save them with the same KiCad version and layer configuration.",
-                                "基板間でカスタムレイヤーの番号が衝突しています。同じKiCadバージョンとレイヤー設定で保存してください。",
-                                "Die benutzerdefinierten Layer-IDs dieser Leiterplatten stehen im Konflikt. Speichern Sie die Dateien mit derselben KiCad-Version und Layerkonfiguration."
+                                TextConstants.KiCad.customLayerIDsConflictBetweenTheseBoardsSaveThemEnglish,
+                                TextConstants.KiCad.customLayerIDsConflictBetweenTheseBoardsSaveThemJapanese,
+                                TextConstants.KiCad.customLayerIDsConflictBetweenTheseBoardsSaveThemGerman
                             ))
                     }
                     layerRows.append(row); if let name = row.scalar(at: 1) { layerNames.insert(name) }
                 }
             }
         }
-        let layerPosition = output.firstIndex { $0.head == "setup" } ?? output.count
-        output.insert(.list([.atom("layers")] + layerRows), at: layerPosition)
+        let layerPosition = output.firstIndex { $0.head == TextConstants.KiCad.tokenSetup } ?? output.count
+        output.insert(.list([.atom(TextConstants.Common.tokenLayers)] + layerRows), at: layerPosition)
         var netDeclarations: [SExpression] = [], geometry: [SExpression] = [], embedded: [SExpression] = []
         var embeddedByName: [String: String] = [:]
         var nextNet = 1
-        if !namedNets { netDeclarations.append(.list([.atom("net"), .atom("0"), .string("")])) }
+        if !namedNets {
+            netDeclarations.append(
+                .list([
+                    .atom(TextConstants.KiCad.tokenNet), .atom(TextConstants.Common.number0),
+                    .string(TextConstants.Common.empty),
+                ]))
+        }
         for (instance, placement) in layout.placements.enumerated() {
             let index = placement.sourceIndex, root = roots[index]
-            let prefix = "B\(instance + 1)/"
-            var oldCodes: [String: String] = ["0": ""]
-            for item in root where item.head == "net" {
+            let prefix = TextConstants.KiCad.instanceReferencePrefixTemplate(instance + 1)
+            var oldCodes: [String: String] = [TextConstants.Common.number0: TextConstants.Common.empty]
+            for item in root where item.head == TextConstants.KiCad.tokenNet {
                 if let code = item.scalar(at: 1), let name = item.scalar(at: 2) { oldCodes[code] = name }
             }
             var codes: [String: Int] = [:]
@@ -665,7 +816,9 @@ enum KiCadPanelEngine {
             /// DE: Alte Netznummern oder Namen des neuen Formats auflösen. Bei nicht definierten Netznummern einen
             ///     Fehler auslösen.
             func netName(_ expression: SExpression) throws -> String? {
-                guard case .list(let values) = expression, values.first?.scalar == "net", values.count >= 2 else {
+                guard case .list(let values) = expression, values.first?.scalar == TextConstants.KiCad.tokenNet,
+                    values.count >= 2
+                else {
                     return nil
                 }
                 if values.count >= 3 { return values[2].scalar }
@@ -673,8 +826,9 @@ enum KiCadPanelEngine {
                     guard let name = oldCodes[value] else {
                         throw KiCadPanelError.invalidBoard(
                             L10n.text(
-                                "A board item refers to an undefined net code.", "未定義のネット番号を参照する基板要素があります。",
-                                "Ein Leiterplattenelement verweist auf eine undefinierte Netznummer."))
+                                TextConstants.KiCad.aBoardItemRefersToAnUndefinedNetCodeEnglish,
+                                TextConstants.KiCad.aBoardItemRefersToAnUndefinedNetCodeJapanese,
+                                TextConstants.KiCad.aBoardItemRefersToAnUndefinedNetCodeGerman))
                     }
                     return name
                 }
@@ -690,9 +844,9 @@ enum KiCadPanelEngine {
             func rewrite(_ expression: inout SExpression) throws {
                 guard case .list(var values) = expression else { return }
                 if let name = try netName(expression) {
-                    let full = name.isEmpty ? "" : prefix + name
+                    let full = name.isEmpty ? TextConstants.Common.empty : prefix + name
                     if namedNets {
-                        expression = .list([.atom("net"), .string(full)])
+                        expression = .list([.atom(TextConstants.KiCad.tokenNet), .string(full)])
                     } else {
                         var code = 0
                         if !full.isEmpty {
@@ -700,19 +854,23 @@ enum KiCadPanelEngine {
                                 code = existing
                             } else {
                                 code = nextNet; nextNet += 1; codes[full] = code;
-                                netDeclarations.append(.list([.atom("net"), .atom(String(code)), .string(full)]))
+                                netDeclarations.append(
+                                    .list([.atom(TextConstants.KiCad.tokenNet), .atom(String(code)), .string(full)]))
                             }
                         }
                         // EN: Pads carry the name; tracks/zones use only the code.
                         // JA: パッドにはネット名を持たせる。配線とゾーンではネット番号だけを使う。
                         // DE: Pads enthalten den Netznamen; Leiterbahnen und Zonen verwenden nur die Netznummer.
                         expression = .list(
-                            [.atom("net"), .atom(String(code))] + (values.count > 2 ? [.string(full)] : []))
+                            [.atom(TextConstants.KiCad.tokenNet), .atom(String(code))]
+                                + (values.count > 2 ? [.string(full)] : []))
                     }
                     return
                 }
-                if values.first?.scalar == "net_name", values.count > 1, let name = values[1].scalar {
-                    values[1] = .string(name.isEmpty ? "" : prefix + name)
+                if values.first?.scalar == TextConstants.KiCad.tokenNetName, values.count > 1,
+                    let name = values[1].scalar
+                {
+                    values[1] = .string(name.isEmpty ? TextConstants.Common.empty : prefix + name)
                 }
                 for i in values.indices { try rewrite(&values[i]) }
                 expression = .list(values)
@@ -724,29 +882,39 @@ enum KiCadPanelEngine {
             //     entsprechenden kopierten Footprints, Leiterbahnen und Grafiken verweisen.
             var items = SExpression.list(
                 root.filter {
-                    geometryHeads.contains($0.head ?? "") && $0.directList("layer")?.scalar(at: 1) != "Edge.Cuts"
+                    geometryHeads.contains($0.head ?? TextConstants.Common.empty)
+                        && $0.directList(TextConstants.Common.tokenLayer)?.scalar(at: 1)
+                            != TextConstants.KiCad.tokenEdgeCuts
                 })
             replaceUUIDs(&items)
             try rewrite(&items)
             if case .list(var parts) = items {
                 for i in parts.indices {
-                    let isFootprint = parts[i].head == "footprint"
+                    let isFootprint = parts[i].head == TextConstants.KiCad.tokenFootprint
                     translate(&parts[i], dx: placement.offset.x, dy: placement.offset.y, footprint: isFootprint)
-                    if isFootprint { disambiguateReference(&parts[i], suffix: "_B\(instance + 1)") }
+                    if isFootprint {
+                        disambiguateReference(
+                            &parts[i], suffix: TextConstants.KiCad.instanceReferenceSuffixTemplate(instance + 1))
+                    }
                 }
                 geometry += parts
             }
-            if case .list(let files) = root.first(where: { $0.head == "embedded_files" }) {
+            if case .list(let files) = root.first(where: { $0.head == TextConstants.KiCad.tokenEmbeddedFiles }) {
                 for file in files.dropFirst() {
-                    let name = file.scalar(at: 1) ?? file.directList("name")?.scalar(at: 1) ?? file.render()
+                    let name =
+                        file.scalar(at: 1) ?? file.directList(TextConstants.Common.tokenName)?.scalar(at: 1)
+                        ?? file.render()
                     let content = file.render()
                     if let existing = embeddedByName[name] {
                         guard existing == content else {
                             throw KiCadPanelError.invalidBoard(
                                 L10n.text(
-                                    "Different embedded files share the name \(name). Rename one in KiCad before combining these boards.",
-                                    "内容の異なる埋め込みファイルに同じ名前（\(name)）が使われています。KiCadで片方の名前を変更してから統合してください。",
-                                    "Verschiedene eingebettete Dateien haben denselben Namen \(name). Benennen Sie vor dem Zusammenfügen eine davon in KiCad um."
+                                    TextConstants.KiCad.differentEmbeddedFilesShareTheNameNameRenameOneEnglishTemplate(
+                                        name),
+                                    TextConstants.KiCad.differentEmbeddedFilesShareTheNameNameRenameOneJapaneseTemplate(
+                                        name),
+                                    TextConstants.KiCad.differentEmbeddedFilesShareTheNameNameRenameOneGermanTemplate(
+                                        name)
                                 ))
                         }
                     } else {
@@ -758,12 +926,12 @@ enum KiCadPanelEngine {
         geometry += routing.segments.map {
             makeLine(
                 start: BoardPoint(x: $0.a.x, y: $0.a.y), end: BoardPoint(x: $0.b.x, y: $0.b.y),
-                width: max(0.05, options.dimensionLineWidthMM), layer: "Edge.Cuts")
+                width: max(0.05, options.dimensionLineWidthMM), layer: TextConstants.KiCad.tokenEdgeCuts)
         }
         geometry += try layout.guides(options: options).map {
             makeLine(
                 start: BoardPoint(x: $0.a.x, y: $0.a.y), end: BoardPoint(x: $0.b.x, y: $0.b.y),
-                width: options.vScoreLineWidthMM, layer: "Dwgs.User")
+                width: options.vScoreLineWidthMM, layer: TextConstants.KiCad.tokenDwgsUser)
         }
         var holes = routing.mouseBites.map { ($0, options.mouseBiteDiameterMM) }
         if options.addMountingHoles {
@@ -777,11 +945,14 @@ enum KiCadPanelEngine {
         }
         for (index, hole) in holes.enumerated() {
             var item = makeMountingHole(
-                at: BoardPoint(x: hole.0.x, y: hole.0.y), diameter: hole.1, reference: "PANEL_H\(index + 1)")
+                at: BoardPoint(x: hole.0.x, y: hole.0.y), diameter: hole.1,
+                reference: TextConstants.KiCad.tokenPANELHTemplate(index + 1))
             if case .list(var fields) = item {
-                for i in fields.indices where fields[i].head == "property" {
+                for i in fields.indices where fields[i].head == TextConstants.KiCad.tokenProperty {
                     if case .list(var property) = fields[i] {
-                        property.append(.list([.atom("hide"), .atom("yes")])); fields[i] = .list(property)
+                        property.append(
+                            .list([.atom(TextConstants.KiCad.tokenHide), .atom(TextConstants.Common.tokenYes)]));
+                        fields[i] = .list(property)
                     }
                 }
                 item = .list(fields)
@@ -789,16 +960,20 @@ enum KiCadPanelEngine {
             geometry.append(item)
         }
         output += netDeclarations + geometry
-        if !embedded.isEmpty { output.append(.list([.atom("embedded_files")] + embedded)) }
-        if roots.contains(where: { $0.contains(where: { $0.head == "embedded_fonts" && $0.scalar(at: 1) == "yes" }) }) {
-            output.append(.list([.atom("embedded_fonts"), .atom("yes")]))
+        if !embedded.isEmpty { output.append(.list([.atom(TextConstants.KiCad.tokenEmbeddedFiles)] + embedded)) }
+        if roots.contains(where: {
+            $0.contains(where: {
+                $0.head == TextConstants.KiCad.tokenEmbeddedFonts && $0.scalar(at: 1) == TextConstants.Common.tokenYes
+            })
+        }) {
+            output.append(.list([.atom(TextConstants.KiCad.tokenEmbeddedFonts), .atom(TextConstants.Common.tokenYes)]))
         }
         let b = layout.panelBounds
         let summary = PanelSummary(
             boardWidthMM: layout.arrayBounds.maxX, boardHeightMM: layout.arrayBounds.maxY,
             panelWidthMM: b.maxX - b.minX, panelHeightMM: b.maxY - b.minY, columns: options.columns,
             rows: layout.rowCount, dimensionLineWidthMM: options.dimensionLineWidthMM)
-        let serialized = Data((SExpression.list(output).render() + "\n").utf8)
+        let serialized = Data((SExpression.list(output).render() + TextConstants.Common.newline).utf8)
         return try PanelValidation.output(normalizeLayers(data: serialized), summary: summary, options: options)
     }
 
@@ -833,25 +1008,30 @@ enum KiCadPanelEngine {
             zip(points, points.dropFirst()).map { RouteSegment(a: $0, b: $1) }
         }
         switch expression.head {
-        case "gr_line": if let a = p("start"), let b = p("end") { return [RouteSegment(a: a, b: b)] }
-        case "gr_arc":
-            if let a = p("start"), let m = p("mid"), let b = p("end") {
+        case TextConstants.KiCad.tokenGrLine:
+            if let a = p(TextConstants.KiCad.tokenStart), let b = p(TextConstants.KiCad.tokenEnd) {
+                return [RouteSegment(a: a, b: b)]
+            }
+        case TextConstants.KiCad.tokenGrArc:
+            if let a = p(TextConstants.KiCad.tokenStart), let m = p(TextConstants.KiCad.tokenMid),
+                let b = p(TextConstants.KiCad.tokenEnd)
+            {
                 return chain(try PanelRouting.threePointArc(start: a, mid: m, end: b))
             }
-        case "gr_rect":
-            if let a = p("start"), let b = p("end") {
+        case TextConstants.KiCad.tokenGrRect:
+            if let a = p(TextConstants.KiCad.tokenStart), let b = p(TextConstants.KiCad.tokenEnd) {
                 return PanelRouting.edges(
                     RouteRect(minX: min(a.x, b.x), minY: min(a.y, b.y), maxX: max(a.x, b.x), maxY: max(a.y, b.y)).points
                 )
             }
-        case "gr_circle":
-            if let center = p("center"), let end = p("end") {
+        case TextConstants.KiCad.tokenGrCircle:
+            if let center = p(TextConstants.KiCad.tokenCenter), let end = p(TextConstants.KiCad.tokenEnd) {
                 return chain(try PanelRouting.arc(center: center, start: end, sweep: 2 * .pi))
             }
-        case "gr_poly":
-            if case .list(let values) = expression.directList("pts") {
+        case TextConstants.KiCad.tokenGrPoly:
+            if case .list(let values) = expression.directList(TextConstants.KiCad.tokenPts) {
                 let points = values.compactMap { v -> RoutePoint? in
-                    guard v.head == "xy", let x = v.scalar(at: 1).flatMap(Double.init),
+                    guard v.head == TextConstants.KiCad.tokenXy, let x = v.scalar(at: 1).flatMap(Double.init),
                         let y = v.scalar(at: 2).flatMap(Double.init)
                     else { return nil }
                     return RoutePoint(x: x, y: y)
@@ -862,8 +1042,9 @@ enum KiCadPanelEngine {
         }
         throw RoutingError.invalid(
             L10n.text(
-                "Unsupported Edge.Cuts geometry for tab routing.", "タブ生成に未対応のEdge.Cuts形状です。直線・円弧・円・矩形・ポリゴンを使用してください。",
-                "Diese Edge.Cuts-Geometrie wird für Stege nicht unterstützt. Verwenden Sie Linien, Kreisbögen, Kreise, Rechtecke oder Polygone."
+                TextConstants.KiCad.unsupportedEdgeCutsGeometryForTabRoutingEnglish,
+                TextConstants.KiCad.unsupportedEdgeCutsGeometryForTabRoutingJapanese,
+                TextConstants.KiCad.unsupportedEdgeCutsGeometryForTabRoutingGerman
             ))
     }
 
@@ -877,10 +1058,10 @@ enum KiCadPanelEngine {
         guard case .list(let parts) = expression else { return [] }
         var points: [BoardPoint] = []
         collectPoints(parts.dropFirst(), into: &points)
-        if expression.head == "gr_arc", points.count >= 3 {
+        if expression.head == TextConstants.KiCad.tokenGrArc, points.count >= 3 {
             points += arcBounds(start: points[0], mid: points[1], end: points[2])
         }
-        if expression.head == "gr_circle", points.count >= 2 {
+        if expression.head == TextConstants.KiCad.tokenGrCircle, points.count >= 2 {
             let center = points[0], edge = points[1]
             let radius = hypot(center.x - edge.x, center.y - edge.y)
             points += [
@@ -957,7 +1138,7 @@ enum KiCadPanelEngine {
     private static func translate(_ expression: inout SExpression, dx: Double, dy: Double, footprint: Bool) {
         guard case .list(var parts) = expression else { return }
         if footprint {
-            if let atIndex = parts.firstIndex(where: { $0.head == "at" }) {
+            if let atIndex = parts.firstIndex(where: { $0.head == TextConstants.KiCad.tokenAt }) {
                 shiftPointList(&parts[atIndex], dx: dx, dy: dy)
             }
         } else {
@@ -994,7 +1175,7 @@ enum KiCadPanelEngine {
     ///
     /// DE: Interne Referenzen eindeutig machen und sichtbaren Bestückungsdruck im Original erhalten.
     private static func disambiguateReference(_ expression: inout SExpression, row: Int, column: Int) {
-        disambiguateReference(&expression, suffix: "_R\(row)C\(column)")
+        disambiguateReference(&expression, suffix: TextConstants.KiCad.tokenRCTemplate(row, column))
     }
 
     /// EN: Make internal references unique while preserving original visible silkscreen text.
@@ -1006,11 +1187,15 @@ enum KiCadPanelEngine {
         guard case .list(var parts) = expression else { return }
         let oldReference: String? =
             parts.compactMap { part in
-                guard part.head == "property", part.scalar(at: 1) == "Reference" else { return nil }
+                guard part.head == TextConstants.KiCad.tokenProperty,
+                    part.scalar(at: 1) == TextConstants.KiCad.referencePropertyName
+                else { return nil }
                 return part.scalar(at: 2)
             }.first
             ?? parts.compactMap { part in
-                guard part.head == "fp_text", part.scalar(at: 1) == "reference" else { return nil }
+                guard part.head == TextConstants.KiCad.tokenFpText,
+                    part.scalar(at: 1) == TextConstants.KiCad.referenceTextKind
+                else { return nil }
                 return part.scalar(at: 2)
             }.first
         guard let oldReference, !oldReference.isEmpty else { return }
@@ -1023,24 +1208,42 @@ enum KiCadPanelEngine {
             // DE: Die Referenz bleibt im KiCad-Objektmodell eindeutig. Ihre sichtbare Beschriftung wird zu normalem
             //     Footprint-Text mit ursprünglichem Wortlaut, lokaler Position, Lage und Texteffekten.
             if case .list(var label) = parts[index] {
-                let isProperty = label.first?.scalar == "property" && label.count > 2 && label[1].scalar == "Reference"
-                let isLegacy = label.first?.scalar == "fp_text" && label.count > 2 && label[1].scalar == "reference"
+                let isProperty =
+                    label.first?.scalar == TextConstants.KiCad.tokenProperty && label.count > 2
+                    && label[1].scalar == TextConstants.KiCad.referencePropertyName
+                let isLegacy =
+                    label.first?.scalar == TextConstants.KiCad.tokenFpText && label.count > 2
+                    && label[1].scalar == TextConstants.KiCad.referenceTextKind
                 if isProperty || isLegacy {
-                    if !label.contains(where: { $0.head == "layer" }) {
-                        let back = parts.first(where: { $0.head == "layer" })?.scalar(at: 1) == "B.Cu"
-                        label.append(.list([.atom("layer"), .string(back ? "B.SilkS" : "F.SilkS")]))
+                    if !label.contains(where: { $0.head == TextConstants.Common.tokenLayer }) {
+                        let back =
+                            parts.first(where: { $0.head == TextConstants.Common.tokenLayer })?.scalar(at: 1)
+                            == TextConstants.KiCad.tokenBCu
+                        label.append(
+                            .list([
+                                .atom(TextConstants.Common.tokenLayer),
+                                .string(back ? TextConstants.KiCad.tokenBSilkS : TextConstants.KiCad.tokenFSilkS),
+                            ]))
                     }
                     let hidden = label.contains {
-                        $0.scalar == "hide" || ($0.head == "hide" && $0.scalar(at: 1) != "no")
+                        $0.scalar == TextConstants.KiCad.tokenHide
+                            || ($0.head == TextConstants.KiCad.tokenHide
+                                && $0.scalar(at: 1) != TextConstants.KiCad.tokenNo)
                     }
                     if !hidden {
                         var fixed = SExpression.list(
-                            [.atom("fp_text"), .atom("user"), .string(oldReference)] + Array(label.dropFirst(3)))
+                            [
+                                .atom(TextConstants.KiCad.tokenFpText), .atom(TextConstants.KiCad.userTextKind),
+                                .string(oldReference),
+                            ] + Array(label.dropFirst(3)))
                         replaceUUIDs(&fixed)
                         fixedLabels.append(fixed)
                     }
                     if !hidden {
-                        label.append(isProperty ? .list([.atom("hide"), .atom("yes")]) : .atom("hide"))
+                        label.append(
+                            isProperty
+                                ? .list([.atom(TextConstants.KiCad.tokenHide), .atom(TextConstants.Common.tokenYes)])
+                                : .atom(TextConstants.KiCad.tokenHide))
                     }
                     parts[index] = .list(label)
                 }
@@ -1060,12 +1263,12 @@ enum KiCadPanelEngine {
         guard case .list(var parts) = expression else { return }
         let textIndex: Int?
         switch parts.first?.scalar {
-        case "fp_text", "property": textIndex = 2
-        case "fp_text_box": textIndex = 1
+        case TextConstants.KiCad.tokenFpText, TextConstants.KiCad.tokenProperty: textIndex = 2
+        case TextConstants.KiCad.tokenFpTextBox: textIndex = 1
         default: textIndex = nil
         }
         if let index = textIndex, parts.indices.contains(index), let text = parts[index].scalar {
-            parts[index] = .string(text.replacingOccurrences(of: "${REFERENCE}", with: reference))
+            parts[index] = .string(text.replacingOccurrences(of: TextConstants.KiCad.tokenREFERENCE, with: reference))
         }
         for index in parts.indices { freezeReferenceVariables(&parts[index], reference: reference) }
         expression = .list(parts)
@@ -1078,17 +1281,19 @@ enum KiCadPanelEngine {
     /// DE: Referenzzeichenketten in S-Ausdrücken ersetzen. Positionen, Schriftgrößen und Lagen beibehalten.
     private static func replaceReference(_ expression: inout SExpression, oldValue: String, newValue: String) {
         guard case .list(var parts) = expression else { return }
-        if parts.first?.scalar == "property", parts.count > 2, parts[1].scalar == "Reference",
+        if parts.first?.scalar == TextConstants.KiCad.tokenProperty, parts.count > 2,
+            parts[1].scalar == TextConstants.KiCad.referencePropertyName,
             parts[2].scalar == oldValue
         {
             parts[2] = .string(newValue)
         }
-        if parts.first?.scalar == "fp_text", parts.count > 2, parts[1].scalar == "reference",
+        if parts.first?.scalar == TextConstants.KiCad.tokenFpText, parts.count > 2,
+            parts[1].scalar == TextConstants.KiCad.referenceTextKind,
             parts[2].scalar == oldValue
         {
             parts[2] = .string(newValue)
         }
-        if parts.first?.scalar == "reference", parts.count > 1, parts[1].scalar == oldValue {
+        if parts.first?.scalar == TextConstants.KiCad.referenceTextKind, parts.count > 1, parts[1].scalar == oldValue {
             parts[1] = .string(newValue)
         }
         for index in parts.indices { replaceReference(&parts[index], oldValue: oldValue, newValue: newValue) }
@@ -1114,7 +1319,9 @@ enum KiCadPanelEngine {
     /// DE: Zuordnungen vorhandener zu neuen UUIDs sammeln. Die Rekursionstiefe wurde beim Einlesen geprüft.
     private static func collectUUIDs(_ expression: SExpression, into replacements: inout [String: String]) {
         guard case .list(let parts) = expression else { return }
-        if ["uuid", "tstamp"].contains(parts.first?.scalar ?? ""), let old = parts.dropFirst().first?.scalar {
+        if [TextConstants.KiCad.tokenUuid, TextConstants.KiCad.tokenTstamp].contains(
+            parts.first?.scalar ?? TextConstants.Common.empty), let old = parts.dropFirst().first?.scalar
+        {
             replacements[old] = UUID().uuidString.lowercased()
         }
         for part in parts { collectUUIDs(part, into: &replacements) }
@@ -1127,7 +1334,8 @@ enum KiCadPanelEngine {
     /// DE: Kennungen und ihre Verweise mithilfe der Zuordnung konsistent umschreiben.
     private static func applyUUIDs(_ expression: inout SExpression, replacements: [String: String]) {
         guard case .list(var parts) = expression else { return }
-        if ["uuid", "tstamp"].contains(parts.first?.scalar ?? ""), parts.count > 1, let old = parts[1].scalar,
+        if [TextConstants.KiCad.tokenUuid, TextConstants.KiCad.tokenTstamp].contains(
+            parts.first?.scalar ?? TextConstants.Common.empty), parts.count > 1, let old = parts[1].scalar,
             let replacement = replacements[old]
         {
             parts[1] = .string(replacement)
@@ -1153,12 +1361,15 @@ enum KiCadPanelEngine {
         -> SExpression
     {
         .list([
-            .atom("gr_rect"), point("start", x: minX, y: minY), point("end", x: maxX, y: maxY),
+            .atom(TextConstants.KiCad.tokenGrRect), point(TextConstants.KiCad.tokenStart, x: minX, y: minY),
+            point(TextConstants.KiCad.tokenEnd, x: maxX, y: maxY),
             .list([
-                .atom("stroke"), .list([.atom("width"), .atom(numberString(width))]),
-                .list([.atom("type"), .atom("default")]),
+                .atom(TextConstants.Common.tokenStroke),
+                .list([.atom(TextConstants.Common.tokenWidth), .atom(numberString(width))]),
+                .list([.atom(TextConstants.KiCad.tokenType), .atom(TextConstants.Common.tokenDefault)]),
             ]),
-            .list([.atom("fill"), .atom("none")]), .list([.atom("layer"), .string("Edge.Cuts")]), uuidNode(),
+            .list([.atom(TextConstants.Common.tokenFill), .atom(TextConstants.Common.tokenNone)]),
+            .list([.atom(TextConstants.Common.tokenLayer), .string(TextConstants.KiCad.tokenEdgeCuts)]), uuidNode(),
         ])
     }
 
@@ -1169,12 +1380,14 @@ enum KiCadPanelEngine {
     /// DE: Ein Segment mit Lage aus geprüften Endpunkten [mm] und einer Linienbreite [mm] erstellen.
     private static func makeLine(start: BoardPoint, end: BoardPoint, width: Double, layer: String) -> SExpression {
         .list([
-            .atom("gr_line"), point("start", x: start.x, y: start.y), point("end", x: end.x, y: end.y),
+            .atom(TextConstants.KiCad.tokenGrLine), point(TextConstants.KiCad.tokenStart, x: start.x, y: start.y),
+            point(TextConstants.KiCad.tokenEnd, x: end.x, y: end.y),
             .list([
-                .atom("stroke"), .list([.atom("width"), .atom(numberString(width))]),
-                .list([.atom("type"), .atom("solid")]),
+                .atom(TextConstants.Common.tokenStroke),
+                .list([.atom(TextConstants.Common.tokenWidth), .atom(numberString(width))]),
+                .list([.atom(TextConstants.KiCad.tokenType), .atom(TextConstants.KiCad.tokenSolid)]),
             ]),
-            .list([.atom("layer"), .string(layer)]), uuidNode(),
+            .list([.atom(TextConstants.Common.tokenLayer), .string(layer)]), uuidNode(),
         ])
     }
 
@@ -1185,40 +1398,69 @@ enum KiCadPanelEngine {
     /// DE: Einen NPTH-Footprint aus geprüftem Mittelpunkt [mm] und Durchmesser [mm] erstellen.
     private static func makeMountingHole(at point: BoardPoint, diameter: Double, reference: String) -> SExpression {
         .list([
-            .atom("footprint"), .string("MountingHole:MountingHole_\(numberString(diameter))mm"),
-            .list([.atom("layer"), .string("F.Cu")]), uuidNode(),
-            .list([.atom("at"), .atom(numberString(point.x)), .atom(numberString(point.y))]),
+            .atom(TextConstants.KiCad.tokenFootprint),
+            .string(TextConstants.KiCad.tokenMountingHoleMountingHoleMmTemplate(numberString(diameter))),
+            .list([.atom(TextConstants.Common.tokenLayer), .string(TextConstants.KiCad.tokenFCu)]), uuidNode(),
+            .list([.atom(TextConstants.KiCad.tokenAt), .atom(numberString(point.x)), .atom(numberString(point.y))]),
             .list([
-                .atom("property"), .string("Reference"), .string(reference),
-                .list([.atom("at"), .atom("0"), .atom("0"), .atom("0")]), .list([.atom("layer"), .string("F.SilkS")]),
+                .atom(TextConstants.KiCad.tokenProperty), .string(TextConstants.KiCad.referencePropertyName),
+                .string(reference),
+                .list([
+                    .atom(TextConstants.KiCad.tokenAt), .atom(TextConstants.Common.number0),
+                    .atom(TextConstants.Common.number0), .atom(TextConstants.Common.number0),
+                ]), .list([.atom(TextConstants.Common.tokenLayer), .string(TextConstants.KiCad.tokenFSilkS)]),
                 uuidNode(),
                 .list([
-                    .atom("effects"),
+                    .atom(TextConstants.KiCad.tokenEffects),
                     .list([
-                        .atom("font"), .list([.atom("size"), .atom("1"), .atom("1")]),
-                        .list([.atom("thickness"), .atom("0.15")]),
+                        .atom(TextConstants.KiCad.tokenFont),
+                        .list([
+                            .atom(TextConstants.Common.tokenSize), .atom(TextConstants.Common.number1),
+                            .atom(TextConstants.Common.number1),
+                        ]),
+                        .list([.atom(TextConstants.KiCad.tokenThickness), .atom(TextConstants.KiCad.number0Point15)]),
                     ]),
                 ]),
             ]),
             .list([
-                .atom("property"), .string("Value"), .string("MountingHole"),
-                .list([.atom("at"), .atom("0"), .atom("0"), .atom("0")]), .list([.atom("layer"), .string("F.Fab")]),
+                .atom(TextConstants.KiCad.tokenProperty), .string(TextConstants.KiCad.tokenValue),
+                .string(TextConstants.KiCad.tokenMountingHole),
+                .list([
+                    .atom(TextConstants.KiCad.tokenAt), .atom(TextConstants.Common.number0),
+                    .atom(TextConstants.Common.number0), .atom(TextConstants.Common.number0),
+                ]), .list([.atom(TextConstants.Common.tokenLayer), .string(TextConstants.KiCad.tokenFFab)]),
                 uuidNode(),
                 .list([
-                    .atom("effects"),
+                    .atom(TextConstants.KiCad.tokenEffects),
                     .list([
-                        .atom("font"), .list([.atom("size"), .atom("1"), .atom("1")]),
-                        .list([.atom("thickness"), .atom("0.15")]),
+                        .atom(TextConstants.KiCad.tokenFont),
+                        .list([
+                            .atom(TextConstants.Common.tokenSize), .atom(TextConstants.Common.number1),
+                            .atom(TextConstants.Common.number1),
+                        ]),
+                        .list([.atom(TextConstants.KiCad.tokenThickness), .atom(TextConstants.KiCad.number0Point15)]),
                     ]),
                 ]),
             ]),
-            .list([.atom("attr"), .atom("exclude_from_pos_files"), .atom("exclude_from_bom")]),
             .list([
-                .atom("pad"), .string(""), .atom("np_thru_hole"), .atom("circle"),
-                .list([.atom("at"), .atom("0"), .atom("0")]),
-                .list([.atom("size"), .atom(numberString(diameter)), .atom(numberString(diameter))]),
-                .list([.atom("drill"), .atom(numberString(diameter))]),
-                .list([.atom("layers"), .string("*.Cu"), .string("*.Mask")]), uuidNode(),
+                .atom(TextConstants.KiCad.tokenAttr), .atom(TextConstants.KiCad.tokenExcludeFromPosFiles),
+                .atom(TextConstants.KiCad.tokenExcludeFromBom),
+            ]),
+            .list([
+                .atom(TextConstants.KiCad.tokenPad), .string(TextConstants.Common.empty),
+                .atom(TextConstants.KiCad.tokenNpThruHole), .atom(TextConstants.Common.tokenCircle),
+                .list([
+                    .atom(TextConstants.KiCad.tokenAt), .atom(TextConstants.Common.number0),
+                    .atom(TextConstants.Common.number0),
+                ]),
+                .list([
+                    .atom(TextConstants.Common.tokenSize), .atom(numberString(diameter)), .atom(numberString(diameter)),
+                ]),
+                .list([.atom(TextConstants.Common.tokenDrill), .atom(numberString(diameter))]),
+                .list([
+                    .atom(TextConstants.Common.tokenLayers), .string(TextConstants.KiCad.allCopperLayers),
+                    .string(TextConstants.KiCad.tokenMask),
+                ]), uuidNode(),
             ]),
         ])
     }
@@ -1237,14 +1479,18 @@ enum KiCadPanelEngine {
     ///
     /// DE: Ein S-Ausdruck-Element mit einer neuen UUID zurückgeben, die sich von denen der Quellplatine
     ///     unterscheidet.
-    private static func uuidNode() -> SExpression { .list([.atom("uuid"), .string(UUID().uuidString.lowercased())]) }
+    private static func uuidNode() -> SExpression {
+        .list([.atom(TextConstants.KiCad.tokenUuid), .string(UUID().uuidString.lowercased())])
+    }
     /// EN: Format validated numbers independently of locale. Do not use a decimal comma.
     ///
     /// JA: 検証済み数値をロケール非依存の表記へ変換する。小数点にカンマを使わない。
     ///
     /// DE: Geprüfte Zahlen unabhängig von der Spracheinstellung formatieren. Kein Dezimalkomma verwenden.
     private static func numberString(_ value: Double) -> String {
-        String(format: "%.9g", locale: Locale(identifier: "en_US_POSIX"), value)
+        String(
+            format: TextConstants.KiCad.kiCadNumberFormat,
+            locale: Locale(identifier: TextConstants.Common.posixLocaleIdentifier), value)
     }
 }
 
@@ -1266,13 +1512,14 @@ enum KiCadPanelError: LocalizedError {
         switch self {
         case .invalidBoard(let reason):
             return L10n.text(
-                "Cannot panelize the KiCad board: \(reason)", "KiCad基板を面付けできません: \(reason)",
-                "Die KiCad-Leiterplatte kann nicht zu einem Nutzen angeordnet werden: \(reason)")
+                TextConstants.KiCad.cannotPanelizeTheKiCadBoardReasonEnglishTemplate(reason),
+                TextConstants.KiCad.cannotPanelizeTheKiCadBoardReasonJapaneseTemplate(reason),
+                TextConstants.KiCad.cannotPanelizeTheKiCadBoardReasonGermanTemplate(reason))
         case .noEdgeCuts:
             return L10n.text(
-                "No board outline was found on Edge.Cuts (lines, arcs or polygons).",
-                "Edge.Cutsレイヤーに基板外形（線、円弧、ポリゴン）がありません。",
-                "Auf Edge.Cuts wurde keine Leiterplattenkontur gefunden (Linien, Kreisbögen oder Polygone).")
+                TextConstants.KiCad.noBoardOutlineWasFoundOnEdgeCutsLinesEnglish,
+                TextConstants.KiCad.noBoardOutlineWasFoundOnEdgeCutsLinesJapanese,
+                TextConstants.KiCad.noBoardOutlineWasFoundOnEdgeCutsLinesGerman)
         }
     }
 }
@@ -1333,23 +1580,39 @@ private indirect enum SExpression {
         switch self {
         case .atom(let value): return value
         case .string(let value):
-            return "\""
-                + value.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
-                .replacingOccurrences(of: "\n", with: "\\n") + "\""
+            return TextConstants.Common.doubleQuote
+                + value.replacingOccurrences(
+                    of: TextConstants.KiCad.backslash, with: TextConstants.KiCad.escapedBackslash
+                )
+                .replacingOccurrences(
+                    of: TextConstants.Common.doubleQuote, with: TextConstants.KiCad.escapedDoubleQuote
+                )
+                .replacingOccurrences(of: TextConstants.Common.newline, with: TextConstants.KiCad.tokenN)
+                + TextConstants.Common.doubleQuote
         case .list(let items):
-            guard !items.isEmpty else { return "()" }
+            guard !items.isEmpty else { return TextConstants.KiCad.emptyList }
             if items.allSatisfy({ $0.scalar != nil }) {
-                return "(" + items.map { $0.render(depth: depth) }.joined(separator: " ") + ")"
+                return TextConstants.KiCad.openingParenthesis
+                    + items.map { $0.render(depth: depth) }.joined(separator: TextConstants.Common.space)
+                    + TextConstants.KiCad.closingParenthesis
             }
             var prefix: [SExpression] = []
             var rest: [SExpression] = []
             for item in items {
                 if rest.isEmpty && item.scalar != nil { prefix.append(item) } else { rest.append(item) }
             }
-            let firstLine = "(" + prefix.map { $0.render(depth: depth) }.joined(separator: " ")
-            let childIndent = String(repeating: "\t", count: depth + 1)
-            let body = rest.map { childIndent + $0.render(depth: depth + 1) }.joined(separator: "\n")
-            return firstLine + (body.isEmpty ? ")" : "\n" + body + "\n" + String(repeating: "\t", count: depth) + ")")
+            let firstLine =
+                TextConstants.KiCad.openingParenthesis
+                + prefix.map { $0.render(depth: depth) }.joined(separator: TextConstants.Common.space)
+            let childIndent = String(repeating: TextConstants.KiCad.tab, count: depth + 1)
+            let body = rest.map { childIndent + $0.render(depth: depth + 1) }.joined(
+                separator: TextConstants.Common.newline)
+            return firstLine
+                + (body.isEmpty
+                    ? TextConstants.KiCad.closingParenthesis
+                    : TextConstants.Common.newline + body + TextConstants.Common.newline
+                        + String(repeating: TextConstants.KiCad.tab, count: depth)
+                        + TextConstants.KiCad.closingParenthesis)
         }
     }
 }
@@ -1365,7 +1628,7 @@ private struct SExpressionParser {
     ///     Tiefenbegrenzung nicht verhindert.
     private var nodeCount = 0
     init(_ source: String) {
-        let normalized = source.first == "\u{feff}" ? String(source.dropFirst()) : source
+        let normalized = source.first == TextConstants.Characters.byteOrderMark ? String(source.dropFirst()) : source
         characters = Array(normalized)
     }
 
@@ -1381,8 +1644,9 @@ private struct SExpressionParser {
         guard index == characters.count else {
             throw KiCadPanelError.invalidBoard(
                 L10n.text(
-                    "Unexpected data after the KiCad board root.", "KiCad基板のルート要素の後に余分なデータがあります。",
-                    "Unerwartete Daten nach dem Wurzelelement der KiCad-Leiterplatte."))
+                    TextConstants.KiCad.unexpectedDataAfterTheKiCadBoardRootEnglish,
+                    TextConstants.KiCad.unexpectedDataAfterTheKiCadBoardRootJapanese,
+                    TextConstants.KiCad.unexpectedDataAfterTheKiCadBoardRootGerman))
         }
         return expression
     }
@@ -1397,19 +1661,24 @@ private struct SExpressionParser {
         guard depth <= PanelLimits.maxParserDepth else {
             throw KiCadPanelError.invalidBoard(
                 L10n.text(
-                    "The KiCad file is nested too deeply.", "KiCadファイルの入れ子が深すぎます。",
-                    "Die KiCad-Datei ist zu tief verschachtelt."))
+                    TextConstants.KiCad.theKiCadFileIsNestedTooDeeplyEnglish,
+                    TextConstants.KiCad.theKiCadFileIsNestedTooDeeplyJapanese,
+                    TextConstants.KiCad.theKiCadFileIsNestedTooDeeplyGerman))
         }
         nodeCount += 1
         guard nodeCount <= PanelLimits.maxSyntaxNodes else {
-            throw PanelValidation.invalid("SExpressionParser.nodeCount", "1...\(PanelLimits.maxSyntaxNodes)")
+            throw PanelValidation.invalid(
+                TextConstants.KiCad.tokenSExpressionParserNodeCount,
+                TextConstants.KiCad.positiveCountRangeTemplate(PanelLimits.maxSyntaxNodes))
         }
         skipWhitespaceAndComments()
         guard index < characters.count else {
             throw KiCadPanelError.invalidBoard(
-                L10n.text("Unexpected end of file.", "ファイル末尾が予期しない位置です。", "Unerwartetes Dateiende."))
+                L10n.text(
+                    TextConstants.KiCad.unexpectedEndOfFileEnglish, TextConstants.KiCad.unexpectedEndOfFileJapanese,
+                    TextConstants.KiCad.unexpectedEndOfFileGerman))
         }
-        if characters[index] == "(" {
+        if characters[index] == TextConstants.Characters.openingParenthesis {
             index += 1
             var items: [SExpression] = []
             while true {
@@ -1417,22 +1686,27 @@ private struct SExpressionParser {
                 guard index < characters.count else {
                     throw KiCadPanelError.invalidBoard(
                         L10n.text(
-                            "A closing parenthesis is missing.", "閉じ括弧が不足しています。", "Eine schließende Klammer fehlt."))
+                            TextConstants.KiCad.aClosingParenthesisIsMissingEnglish,
+                            TextConstants.KiCad.aClosingParenthesisIsMissingJapanese,
+                            TextConstants.KiCad.aClosingParenthesisIsMissingGerman))
                 }
-                if characters[index] == ")" { index += 1; return .list(items) }
+                if characters[index] == TextConstants.Characters.closingParenthesis { index += 1; return .list(items) }
                 items.append(try parseExpression(depth: depth + 1))
             }
         }
-        if characters[index] == "\"" { return .string(try parseQuoted()) }
+        if characters[index] == TextConstants.Characters.doubleQuote { return .string(try parseQuoted()) }
         let start = index
-        while index < characters.count && !characters[index].isWhitespace && characters[index] != "("
-            && characters[index] != ")" && characters[index] != ";"
+        while index < characters.count && !characters[index].isWhitespace
+            && characters[index] != TextConstants.Characters.openingParenthesis
+            && characters[index] != TextConstants.Characters.closingParenthesis
+            && characters[index] != TextConstants.Characters.semicolon
         { index += 1 }
         guard index > start else {
             throw KiCadPanelError.invalidBoard(
                 L10n.text(
-                    "Cannot parse an S-expression token.", "S式トークンを解析できません。",
-                    "Ein Token des S-Ausdrucks kann nicht gelesen werden."))
+                    TextConstants.KiCad.cannotParseAnSExpressionTokenEnglish,
+                    TextConstants.KiCad.cannotParseAnSExpressionTokenJapanese,
+                    TextConstants.KiCad.cannotParseAnSExpressionTokenGerman))
         }
         return .atom(String(characters[start..<index]))
     }
@@ -1445,18 +1719,18 @@ private struct SExpressionParser {
     ///     Fehler auslösen.
     private mutating func parseQuoted() throws -> String {
         index += 1
-        var result = ""
+        var result = TextConstants.Common.empty
         while index < characters.count {
             let character = characters[index]
             index += 1
-            if character == "\"" { return result }
-            if character == "\\", index < characters.count {
+            if character == TextConstants.Characters.doubleQuote { return result }
+            if character == TextConstants.Characters.backslash, index < characters.count {
                 let escaped = characters[index]
                 index += 1
                 switch escaped {
-                case "n": result.append("\n");
-                case "r": result.append("\r");
-                case "t": result.append("\t");
+                case TextConstants.Characters.letterLowerN: result.append(TextConstants.Common.newline);
+                case TextConstants.Characters.letterLowerR: result.append(TextConstants.KiCad.carriageReturn);
+                case TextConstants.Characters.letterLowerT: result.append(TextConstants.KiCad.tab);
                 default: result.append(escaped)
                 }
             } else {
@@ -1465,8 +1739,9 @@ private struct SExpressionParser {
         }
         throw KiCadPanelError.invalidBoard(
             L10n.text(
-                "A quoted string is unterminated.", "引用符が閉じていません。",
-                "Eine Zeichenfolge wurde nicht mit einem Anführungszeichen abgeschlossen."))
+                TextConstants.KiCad.aQuotedStringIsUnterminatedEnglish,
+                TextConstants.KiCad.aQuotedStringIsUnterminatedJapanese,
+                TextConstants.KiCad.aQuotedStringIsUnterminatedGerman))
     }
 
     /// EN: Advance to the next token without reading beyond the character buffer.
@@ -1477,8 +1752,8 @@ private struct SExpressionParser {
     private mutating func skipWhitespaceAndComments() {
         while index < characters.count {
             if characters[index].isWhitespace { index += 1; continue }
-            if characters[index] == ";" {
-                while index < characters.count && characters[index] != "\n" { index += 1 }
+            if characters[index] == TextConstants.Characters.semicolon {
+                while index < characters.count && characters[index] != TextConstants.Characters.newline { index += 1 }
                 continue
             }
             break

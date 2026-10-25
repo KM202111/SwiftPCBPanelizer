@@ -25,6 +25,10 @@ SOFTWARE.
 
 import Foundation
 
+// EN: String/character literals are defined in TextConstants.Routing, Common and Characters; variable text uses constant templates.
+// JA: 文字列・文字リテラルはTextConstants.Routing・Common・Charactersに定義し、可変文は定数テンプレートから生成する。
+// DE: Zeichenketten-/Zeichenliterale stehen in TextConstants.Routing, Common und Characters; variable Texte nutzen konstante Vorlagen.
+
 struct RoutePoint: Equatable {
     var x: Double
     var y: Double
@@ -167,6 +171,22 @@ enum PanelLimits {
     /// DE: Anzahl der in der fertigen Vorschau gezeichneten Bohrungen einschließlich der Originalbohrungen
     ///     [Bohrungen].
     static let maxPreviewHoles = 400_000
+    /// EN: Target PNG sampling density [pixels/inch]; lower it only when pixel limits require scaling.
+    /// JA: PNGの目標画素密度 [pixel/inch]。画素上限を超える場合だけ縮小する。
+    /// DE: Zielauflösung für PNG [Pixel/Zoll]; nur bei Überschreitung der Pixelgrenzen verringern.
+    static let artworkPNGDPI = 300.0
+    /// EN: Maximum width or height of an exported PNG [pixels].
+    /// JA: PNG出力の幅または高さの上限 [pixel]。
+    /// DE: Maximale Breite oder Höhe eines PNG-Exports [Pixel].
+    static let maxArtworkPNGSidePixels = 8_192
+    /// EN: Maximum total image pixels, bounding a single RGBA canvas to 64 MiB before encoding.
+    /// JA: 画像全体の画素数上限。符号化前のRGBA Canvasを1枚当たり64 MiB以内に抑える。
+    /// DE: Maximale Gesamtpixelzahl; begrenzt eine RGBA-Zeichenfläche vor der Kodierung auf 64 MiB.
+    static let maxArtworkPNGPixelCount = 16_777_216
+    /// EN: Maximum wait for SVG image loading during PNG conversion [milliseconds].
+    /// JA: PNG変換でSVG画像の読み込みを待つ時間の上限 [ms]。
+    /// DE: Maximale Wartezeit beim Laden des SVG-Bildes für die PNG-Konvertierung [Millisekunden].
+    static let artworkPNGTimeoutMilliseconds = 30_000
     /// EN: Absolute rotation limit [degrees]. Allow multiple turns while avoiding trigonometry on enormous values.
     ///
     /// JA: 回転角の絶対値 [度]。複数回転の入力は許すが、巨大値の三角関数を避ける。
@@ -180,6 +200,14 @@ enum PanelLimits {
     ///
     /// DE: Rundungstoleranz beim Vergleich von Konturen und berechneten Abmessungen [mm].
     static let boundsToleranceMM = 0.01
+    /// EN: Absolute tolerance for duplicate/collinear outline points during rectangle classification [mm].
+    /// JA: 長方形判定で輪郭の重複点・同一直線上の点を整理する絶対許容差 [mm]。
+    /// DE: Absolute Toleranz für doppelte/kollineare Konturpunkte bei der Rechteckprüfung [mm].
+    static let rectangularOutlineToleranceMM = 0.00001
+    /// EN: Dimensionless cosine tolerance for the four right angles of a rectangular outline.
+    /// JA: 長方形外形の4つの直角を判定する、余弦の無次元許容差。
+    /// DE: Dimensionslose Kosinustoleranz für die vier rechten Winkel einer rechteckigen Kontur.
+    static let rectangularOutlineAngleTolerance = 0.000001
 }
 
 /// EN: Validate contracts at function boundaries. Throw invalid values to the caller instead of hiding them through
@@ -199,8 +227,9 @@ enum PanelValidation {
     static func invalid(_ field: String, _ expected: String) -> RoutingError {
         return .invalid(
             L10n.text(
-                "Invalid value in \(field). Expected: \(expected).", "\(field)の値が不正です。許容範囲: \(expected)。",
-                "Ungültiger Wert in \(field). Erwartet: \(expected)."))
+                TextConstants.Routing.invalidValueInFieldExpectedExpectedEnglishTemplate(field, expected),
+                TextConstants.Routing.invalidValueInFieldExpectedExpectedJapaneseTemplate(field, expected),
+                TextConstants.Routing.invalidValueInFieldExpectedExpectedGermanTemplate(field, expected)))
     }
 
     /// EN: Check that a number lies in the specified closed interval, including rejection of NaN and infinity.
@@ -210,7 +239,8 @@ enum PanelValidation {
     /// DE: Prüfen, ob eine Zahl im angegebenen abgeschlossenen Intervall liegt; NaN und Unendlich ablehnen.
     static func number(_ value: Double, field: String, range: ClosedRange<Double>) throws {
         guard value.isFinite && range.contains(value) else {
-            throw invalid(field, "\(range.lowerBound)...\(range.upperBound)")
+            throw invalid(
+                field, TextConstants.Routing.closedRangeDescriptionTemplate(range.lowerBound, range.upperBound))
         }
     }
 
@@ -221,7 +251,7 @@ enum PanelValidation {
     /// DE: Die Dateigröße vor dem Parsen oder der Rückgabe erzeugter Daten prüfen.
     static func document(_ data: Data, field: String) throws {
         guard !data.isEmpty && data.count <= PanelLimits.maxDocumentBytes else {
-            throw invalid(field, "1...\(PanelLimits.maxDocumentBytes) bytes")
+            throw invalid(field, TextConstants.Routing.textBytesTemplate(PanelLimits.maxDocumentBytes))
         }
     }
 
@@ -233,10 +263,10 @@ enum PanelValidation {
     static func rectangle(_ rect: RouteRect, field: String) throws {
         try PanelRouting.validatePoints(rect.points)
         try number(
-            rect.maxX - rect.minX, field: field + ".widthMM",
+            rect.maxX - rect.minX, field: field + TextConstants.Routing.tokenWidthMM,
             range: Double.leastNonzeroMagnitude...PanelLimits.maxMeasurementMM)
         try number(
-            rect.maxY - rect.minY, field: field + ".heightMM",
+            rect.maxY - rect.minY, field: field + TextConstants.Routing.tokenHeightMM,
             range: Double.leastNonzeroMagnitude...PanelLimits.maxMeasurementMM)
     }
 
@@ -248,12 +278,17 @@ enum PanelValidation {
     /// DE: Zurückgegebene Konturen prüfen: Jede Schleife hat mindestens drei Punkte und alle Punkte liegen im
     ///     Begrenzungsrechteck.
     static func shape(_ shape: PanelBoardShape, field: String) throws {
-        try rectangle(shape.bounds, field: field + ".bounds")
+        try rectangle(shape.bounds, field: field + TextConstants.Routing.tokenBounds)
         guard !shape.contours.isEmpty && shape.contours.allSatisfy({ $0.count >= 3 }) else {
-            throw invalid(field + ".contours", "closed loops with at least 3 points")
+            throw invalid(
+                field + TextConstants.Routing.tokenContours, TextConstants.Routing.textClosedLoopsWithAtLeastPoints)
         }
         let points = shape.contours.flatMap { $0 }
         try PanelRouting.validatePoints(points)
+        try PanelRouting.validatePoints(shape.straightEdges.flatMap { [$0.a, $0.b] })
+        try validateContained(
+            shape.straightEdges.flatMap { [$0.a, $0.b] }, in: shape.bounds,
+            field: field + TextConstants.Routing.tokenStraightEdges)
         let b = shape.bounds
         let tolerance = PanelLimits.boundsToleranceMM
         guard
@@ -262,7 +297,7 @@ enum PanelValidation {
                     && $0.y <= b.maxY + tolerance
             })
         else {
-            throw invalid(field + ".contours", "inside outline bounds")
+            throw invalid(field + TextConstants.Routing.tokenContours, TextConstants.Routing.textInsideOutlineBounds)
         }
     }
 
@@ -275,24 +310,29 @@ enum PanelValidation {
     ///     das Panel die Platinenanordnung enthält.
     static func summary(_ value: PanelSummary) throws {
         for (name, measurement) in [
-            ("boardWidthMM", value.boardWidthMM), ("boardHeightMM", value.boardHeightMM),
-            ("panelWidthMM", value.panelWidthMM), ("panelHeightMM", value.panelHeightMM),
+            (TextConstants.Routing.tokenBoardWidthMM, value.boardWidthMM),
+            (TextConstants.Routing.tokenBoardHeightMM, value.boardHeightMM),
+            (TextConstants.Routing.tokenPanelWidthMM, value.panelWidthMM),
+            (TextConstants.Routing.tokenPanelHeightMM, value.panelHeightMM),
         ] {
             try number(
-                measurement, field: "summary." + name,
+                measurement, field: TextConstants.Routing.tokenSummary + name,
                 range: Double.leastNonzeroMagnitude...PanelLimits.maxMeasurementMM)
         }
         guard value.columns > 0 && value.rows > 0 && value.columns <= PanelLimits.maxBoardPositions / value.rows else {
-            throw invalid("summary.rows/columns", "1...\(PanelLimits.maxBoardPositions) positions")
+            throw invalid(
+                TextConstants.Routing.tokenSummaryRowsColumns,
+                TextConstants.Routing.textPositionsTemplate(PanelLimits.maxBoardPositions))
         }
         guard
             value.panelWidthMM + PanelLimits.boundsToleranceMM >= value.boardWidthMM
                 && value.panelHeightMM + PanelLimits.boundsToleranceMM >= value.boardHeightMM
         else {
-            throw invalid("summary.panel", "contains board array")
+            throw invalid(TextConstants.Routing.tokenSummaryPanel, TextConstants.Routing.textContainsBoardArray)
         }
         try number(
-            value.dimensionLineWidthMM, field: "summary.dimensionLineWidthMM", range: 0...PanelLimits.maxMeasurementMM)
+            value.dimensionLineWidthMM, field: TextConstants.Routing.tokenSummaryDimensionLineWidthMM,
+            range: 0...PanelLimits.maxMeasurementMM)
     }
 
     /// EN: Validate generated data and dimensions together and return the checked pair.
@@ -302,7 +342,7 @@ enum PanelValidation {
     /// DE: Erzeugte Daten und Abmessungen gemeinsam prüfen und das geprüfte Paar zurückgeben.
     static func output(_ data: Data, summary value: PanelSummary, options: PanelOptions) throws -> (Data, PanelSummary)
     {
-        try document(data, field: "export.outputData")
+        try document(data, field: TextConstants.Routing.tokenExportOutputData)
         try summary(value)
         try mountingHoles(width: value.panelWidthMM, height: value.panelHeightMM, options: options)
         return (data, value)
@@ -324,7 +364,8 @@ enum PanelValidation {
             radius > 0 && radius.isFinite && dx >= radius && dy >= radius && dx + radius <= width
                 && dy + radius <= height
         else {
-            throw invalid("mountingHoleOffset/diameter", "entire hole inside panel")
+            throw invalid(
+                TextConstants.Routing.tokenMountingHoleOffsetDiameter, TextConstants.Routing.textEntireHoleInsidePanel)
         }
     }
 
@@ -337,18 +378,20 @@ enum PanelValidation {
     ///     [Grad] getrennt bewerten.
     static func drills(_ drills: [PanelPreviewDrill]) throws {
         guard drills.count <= PanelLimits.maxPreviewHoles else {
-            throw invalid("previewDrills.count", "0...\(PanelLimits.maxPreviewHoles)")
+            throw invalid(
+                TextConstants.Routing.tokenPreviewDrillsCount,
+                TextConstants.Routing.nonnegativeCountRangeTemplate(PanelLimits.maxPreviewHoles))
         }
         for (index, drill) in drills.enumerated() {
             try PanelRouting.validatePoints([drill.center])
             try number(
-                drill.width, field: "previewDrills[\(index)].widthMM",
+                drill.width, field: TextConstants.Routing.tokenPreviewDrillsWidthMMTemplate(index),
                 range: Double.leastNonzeroMagnitude...PanelLimits.maxMeasurementMM)
             try number(
-                drill.height, field: "previewDrills[\(index)].heightMM",
+                drill.height, field: TextConstants.Routing.tokenPreviewDrillsHeightMMTemplate(index),
                 range: Double.leastNonzeroMagnitude...PanelLimits.maxMeasurementMM)
             try number(
-                drill.angle, field: "previewDrills[\(index)].angleDegrees",
+                drill.angle, field: TextConstants.Routing.tokenPreviewDrillsAngleDegreesTemplate(index),
                 range: -PanelLimits.maxRotationDegrees...PanelLimits.maxRotationDegrees)
         }
     }
@@ -360,12 +403,14 @@ enum PanelValidation {
     /// DE: Zurückgegebene Fräsdaten prüfen: Bohrungsanzahl, Koordinaten und geschlossene Schleifen vor Anzeige oder
     ///     Export kontrollieren.
     static func routing(_ plan: RoutingPlan, inside bounds: RouteRect) throws {
-        try rectangle(bounds, field: "routing.panelBounds")
+        try rectangle(bounds, field: TextConstants.Routing.tokenRoutingPanelBounds)
         guard !plan.segments.isEmpty && plan.mouseBites.count <= PanelLimits.maxGeneratedHoles else {
-            throw invalid("routing.segments/mouseBites", "nonempty outline and bounded hole count")
+            throw invalid(
+                TextConstants.Routing.tokenRoutingSegmentsMouseBites,
+                TextConstants.Routing.textNonemptyOutlineAndBoundedHoleCount)
         }
         let points = plan.segments.flatMap { [$0.a, $0.b] } + plan.mouseBites
-        try validateContained(points, in: bounds, field: "routing.points")
+        try validateContained(points, in: bounds, field: TextConstants.Routing.tokenRoutingPoints)
         _ = try PanelRouting.closedLoops(plan.segments)
     }
 
@@ -383,7 +428,7 @@ enum PanelValidation {
                 $0.x >= bounds.minX - e && $0.x <= bounds.maxX + e && $0.y >= bounds.minY - e && $0.y <= bounds.maxY + e
             })
         else {
-            throw invalid(field, "inside panel bounds")
+            throw invalid(field, TextConstants.Routing.textInsidePanelBounds)
         }
     }
 }
@@ -416,9 +461,9 @@ enum PanelRouting {
         else {
             throw RoutingError.invalid(
                 L10n.text(
-                    "Use positive row and column counts with at most 10,000 board positions.",
-                    "行数・列数は1以上、配置数は合計10,000枚以下にしてください。",
-                    "Zeilen- und Spaltenanzahl müssen positiv sein und dürfen zusammen höchstens 10.000 Leiterplattenpositionen ergeben."
+                    TextConstants.Routing.usePositiveRowAndColumnCountsWithAtMostEnglish,
+                    TextConstants.Routing.usePositiveRowAndColumnCountsWithAtMostJapanese,
+                    TextConstants.Routing.usePositiveRowAndColumnCountsWithAtMostGerman
                 ))
         }
         let measurements = [
@@ -432,24 +477,26 @@ enum PanelRouting {
         else {
             throw RoutingError.invalid(
                 L10n.text(
-                    "Measurements must be finite and between 0 and 1,000,000 mm; mounting-hole diameter must be positive.",
-                    "寸法は有限の0〜1,000,000 mm、取付穴径は0より大きい値にしてください。",
-                    "Maße müssen endlich sein und zwischen 0 und 1.000.000 mm liegen; der Durchmesser der Befestigungsbohrung muss positiv sein."
+                    TextConstants.Routing.measurementsMustBeFiniteAndBetweenAndMmMountingEnglish,
+                    TextConstants.Routing.measurementsMustBeFiniteAndBetweenAndMmMountingJapanese,
+                    TextConstants.Routing.measurementsMustBeFiniteAndBetweenAndMmMountingGerman
                 ))
         }
         try PanelValidation.number(
-            options.frameGapMM, field: "options.frameGapMM", range: 0...PanelLimits.maxMeasurementMM)
+            options.frameGapMM, field: TextConstants.Routing.tokenOptionsFrameGapMM,
+            range: 0...PanelLimits.maxMeasurementMM)
         try PanelValidation.number(
-            options.panelCornerRadiusMM, field: "options.panelCornerRadiusMM", range: 0...PanelLimits.maxMeasurementMM)
+            options.panelCornerRadiusMM, field: TextConstants.Routing.tokenOptionsPanelCornerRadiusMM,
+            range: 0...PanelLimits.maxMeasurementMM)
         if options.addTabs {
             guard (1...PanelLimits.maxTabsPerEdge).contains(options.tabsPerEdge), options.tabWidthMM.isFinite,
                 options.tabWidthMM >= PanelLimits.minTabWidthMM, options.tabWidthMM <= PanelLimits.maxMeasurementMM
             else {
                 throw RoutingError.invalid(
                     L10n.text(
-                        "Use a tab width of at least 0.001 mm and between 1 and 1,000 tabs per edge.",
-                        "タブ幅は0.001 mm以上、各辺のタブ数は1〜1,000にしてください。",
-                        "Verwenden Sie eine Stegbreite von mindestens 0,001 mm und 1 bis 1.000 Stege pro Kante."))
+                        TextConstants.Routing.useATabWidthOfAtLeastMmAndEnglish,
+                        TextConstants.Routing.useATabWidthOfAtLeastMmAndJapanese,
+                        TextConstants.Routing.useATabWidthOfAtLeastMmAndGerman))
             }
             if options.perforateTabs {
                 let intervals = options.tabWidthMM / options.mouseBitePitchMM
@@ -461,22 +508,24 @@ enum PanelRouting {
         guard options.panelCornerRadiusMM.isFinite, options.panelCornerRadiusMM >= 0 else {
             throw RoutingError.invalid(
                 L10n.text(
-                    "The panel corner radius must be zero or greater.", "パネル角のRは0以上にしてください。",
-                    "Der Eckenradius des Nutzens muss mindestens 0 betragen."))
+                    TextConstants.Routing.thePanelCornerRadiusMustBeZeroOrGreaterEnglish,
+                    TextConstants.Routing.thePanelCornerRadiusMustBeZeroOrGreaterJapanese,
+                    TextConstants.Routing.thePanelCornerRadiusMustBeZeroOrGreaterGerman))
         }
         guard options.frameGapMM.isFinite, options.frameGapMM >= 0 else {
             throw RoutingError.invalid(
                 L10n.text(
-                    "Frame clearance must be zero or greater.", "外枠と基板の隙間は0以上にしてください。",
-                    "Der Abstand zum Rahmen muss mindestens 0 betragen."))
+                    TextConstants.Routing.frameClearanceMustBeZeroOrGreaterEnglish,
+                    TextConstants.Routing.frameClearanceMustBeZeroOrGreaterJapanese,
+                    TextConstants.Routing.frameClearanceMustBeZeroOrGreaterGerman))
         }
         if options.frameGapMM > 0 || options.addTabs {
             guard options.verticalFrameMM > 0, options.horizontalFrameMM > 0 else {
                 throw RoutingError.invalid(
                     L10n.text(
-                        "Set both frame widths above zero to create a frame and clearance.",
-                        "隙間のある外枠を作るには、左右・上下の外枠幅を両方とも0より大きくしてください。",
-                        "Stellen Sie beide Rahmenbreiten größer als 0 ein, um einen Rahmen mit Abstand zu erstellen."))
+                        TextConstants.Routing.setBothFrameWidthsAboveZeroToCreateAEnglish,
+                        TextConstants.Routing.setBothFrameWidthsAboveZeroToCreateAJapanese,
+                        TextConstants.Routing.setBothFrameWidthsAboveZeroToCreateAGerman))
             }
         }
         if options.addTabs {
@@ -487,9 +536,9 @@ enum PanelRouting {
                 else {
                     throw RoutingError.invalid(
                         L10n.text(
-                            "Mouse-bite diameter must be positive and smaller than the pitch. The pitch must not exceed the tab width.",
-                            "ミシン目の穴径は0より大きく、穴ピッチより小さくしてください。穴ピッチはタブ幅以下にしてください。",
-                            "Der Durchmesser der Sollbruchbohrungen muss größer als 0 und kleiner als der Lochabstand sein. Der Lochabstand darf die Stegbreite nicht überschreiten."
+                            TextConstants.Routing.mouseBiteDiameterMustBePositiveAndSmallerThanEnglish,
+                            TextConstants.Routing.mouseBiteDiameterMustBePositiveAndSmallerThanJapanese,
+                            TextConstants.Routing.mouseBiteDiameterMustBePositiveAndSmallerThanGerman
                         ))
                 }
             }
@@ -497,18 +546,18 @@ enum PanelRouting {
             else {
                 throw RoutingError.invalid(
                     L10n.text(
-                        "Tabs require a positive frame clearance, tab width and tab count.",
-                        "タブを作るには、外枠との隙間・タブ幅・タブ数を0より大きくしてください。",
-                        "Stege erfordern einen Rahmenabstand, eine Stegbreite und eine Steganzahl größer als 0."))
+                        TextConstants.Routing.tabsRequireAPositiveFrameClearanceTabWidthAndEnglish,
+                        TextConstants.Routing.tabsRequireAPositiveFrameClearanceTabWidthAndJapanese,
+                        TextConstants.Routing.tabsRequireAPositiveFrameClearanceTabWidthAndGerman))
             }
             if options.connectBoardsWithTabs
                 && ((options.columns > 1 && options.columnGapMM <= 0) || (options.rows > 1 && options.rowGapMM <= 0))
             {
                 throw RoutingError.invalid(
                     L10n.text(
-                        "Set positive board spacing to connect adjacent boards with tabs.",
-                        "基板間をタブで接続する場合は、列・行の基板間隔も0より大きくしてください。",
-                        "Stellen Sie positive Leiterplattenabstände ein, um benachbarte Leiterplatten mit Stegen zu verbinden."
+                        TextConstants.Routing.setPositiveBoardSpacingToConnectAdjacentBoardsWithEnglish,
+                        TextConstants.Routing.setPositiveBoardSpacingToConnectAdjacentBoardsWithJapanese,
+                        TextConstants.Routing.setPositiveBoardSpacingToConnectAdjacentBoardsWithGerman
                     ))
             }
         }
@@ -517,9 +566,9 @@ enum PanelRouting {
     private static var perforationLimitError: RoutingError {
         .invalid(
             L10n.text(
-                "Too many mouse-bite holes. Increase the hole pitch or reduce the tab width/count.",
-                "ミシン目の穴が多すぎます。穴ピッチを大きくするか、タブ幅・タブ数を減らしてください。",
-                "Zu viele Sollbruchbohrungen. Vergrößern Sie den Lochabstand oder verringern Sie die Stegbreite bzw. Steganzahl."
+                TextConstants.Routing.tooManyMouseBiteHolesIncreaseTheHolePitchEnglish,
+                TextConstants.Routing.tooManyMouseBiteHolesIncreaseTheHolePitchJapanese,
+                TextConstants.Routing.tooManyMouseBiteHolesIncreaseTheHolePitchGerman
             ))
     }
 
@@ -537,8 +586,9 @@ enum PanelRouting {
         else {
             throw RoutingError.invalid(
                 L10n.text(
-                    "The outline contains invalid or out-of-range coordinates.", "外形に不正または範囲外の座標があります。",
-                    "Die Kontur enthält ungültige Koordinaten oder Koordinaten außerhalb des zulässigen Bereichs."))
+                    TextConstants.Routing.theOutlineContainsInvalidOrOutOfRangeCoordinatesEnglish,
+                    TextConstants.Routing.theOutlineContainsInvalidOrOutOfRangeCoordinatesJapanese,
+                    TextConstants.Routing.theOutlineContainsInvalidOrOutOfRangeCoordinatesGerman))
         }
     }
 
@@ -579,9 +629,9 @@ enum PanelRouting {
                 else {
                     throw RoutingError.invalid(
                         L10n.text(
-                            "The board outline is open. Close the outline before creating routed clearances and tabs.",
-                            "基板外形が閉じていません。外形を閉じてから隙間・タブを作成してください。",
-                            "Die Leiterplattenkontur ist offen. Schließen Sie die Kontur, bevor Sie Frässpalte und Stege erstellen."
+                            TextConstants.Routing.theBoardOutlineIsOpenCloseTheOutlineBeforeEnglish,
+                            TextConstants.Routing.theBoardOutlineIsOpenCloseTheOutlineBeforeJapanese,
+                            TextConstants.Routing.theBoardOutlineIsOpenCloseTheOutlineBeforeGerman
                         ))
                 }
                 let segment = pending.remove(at: index)
@@ -593,8 +643,9 @@ enum PanelRouting {
         guard !loops.isEmpty else {
             throw RoutingError.invalid(
                 L10n.text(
-                    "No closed board outline was found.", "閉じた基板外形が見つかりません。",
-                    "Es wurde keine geschlossene Leiterplattenkontur gefunden."))
+                    TextConstants.Routing.noClosedBoardOutlineWasFoundEnglish,
+                    TextConstants.Routing.noClosedBoardOutlineWasFoundJapanese,
+                    TextConstants.Routing.noClosedBoardOutlineWasFoundGerman))
         }
         return loops
     }
@@ -610,8 +661,9 @@ enum PanelRouting {
         guard sweep.isFinite, abs(sweep) <= 2 * .pi + 1e-8 else {
             throw RoutingError.invalid(
                 L10n.text(
-                    "The outline has an invalid arc angle.", "外形の円弧角度が不正です。",
-                    "Die Kontur enthält einen ungültigen Kreisbogenwinkel."))
+                    TextConstants.Routing.theOutlineHasAnInvalidArcAngleEnglish,
+                    TextConstants.Routing.theOutlineHasAnInvalidArcAngleJapanese,
+                    TextConstants.Routing.theOutlineHasAnInvalidArcAngleGerman))
         }
         let radius = (start - center).length
         guard radius > 1e-9 else { return [start] }
@@ -620,8 +672,9 @@ enum PanelRouting {
         guard required.isFinite, required <= Double(PanelLimits.maxArcSegments) else {
             throw RoutingError.invalid(
                 L10n.text(
-                    "The outline arc is too large to approximate accurately.", "外形の円弧が大きすぎるため、指定精度で近似できません。",
-                    "Der Kreisbogen ist zu groß für eine ausreichend genaue Näherung."))
+                    TextConstants.Routing.theOutlineArcIsTooLargeToApproximateAccuratelyEnglish,
+                    TextConstants.Routing.theOutlineArcIsTooLargeToApproximateAccuratelyJapanese,
+                    TextConstants.Routing.theOutlineArcIsTooLargeToApproximateAccuratelyGerman))
         }
         let count = max(1, Int(required))
         let angle = atan2(start.y - center.y, start.x - center.x)
@@ -673,8 +726,9 @@ enum PanelRouting {
     /// DE: Rechteck [mm] und Radius [mm] prüfen; eine gerundete Kontur mit einem auf halbe Rechteckabmessungen
     ///     begrenzten Radius zurückgeben.
     static func roundedRectangle(_ rect: RouteRect, radius: Double) throws -> [RoutePoint] {
-        try PanelValidation.rectangle(rect, field: "roundedRectangle.input")
-        try PanelValidation.number(radius, field: "roundedRectangle.radiusMM", range: 0...PanelLimits.maxMeasurementMM)
+        try PanelValidation.rectangle(rect, field: TextConstants.Routing.tokenRoundedRectangleInput)
+        try PanelValidation.number(
+            radius, field: TextConstants.Routing.tokenRoundedRectangleRadiusMM, range: 0...PanelLimits.maxMeasurementMM)
         let r = max(0, min(radius, (rect.maxX - rect.minX) / 2, (rect.maxY - rect.minY) / 2))
         guard r > 0 else { return rect.points }
         let centers = [
@@ -686,6 +740,71 @@ enum PanelRouting {
             return try arc(
                 center: center, start: RoutePoint(x: center.x + r * cos(angle), y: center.y + r * sin(angle)),
                 sweep: .pi / 2)
+        }
+    }
+
+    /// EN: Recognize one square/rectangular exterior, including rotated rectangles and collinear subdivisions.
+    ///     Internal cutouts do not change the exterior classification. Curves, notches and multiple islands return false.
+    /// JA: 回転した長方形と辺上の分割点も含め、外周が1つの正方形・長方形か判定する。
+    ///     内部の切り抜きは外周の判定に影響しない。曲線・切り欠き・複数の独立外周はfalseを返す。
+    /// DE: Eine quadratische/rechteckige Außenkontur einschließlich gedrehter Rechtecke und unterteilter Kanten erkennen.
+    ///     Innere Ausschnitte ändern die Einordnung nicht. Kurven, Kerben und mehrere Inseln ergeben false.
+    private static func hasRectangularExterior(_ contours: [[RoutePoint]]) throws -> Bool {
+        guard !contours.isEmpty, contours.allSatisfy({ $0.count >= 3 }) else {
+            throw PanelValidation.invalid(
+                TextConstants.Routing.tokenFrameTabsContours, TextConstants.Routing.textClosedLoopsWithAtLeastPoints)
+        }
+        try validatePoints(contours.flatMap { $0 })
+        let exteriors = contours.enumerated().filter { index, loop in
+            guard let first = loop.first else { return false }
+            return contours.enumerated().filter {
+                $0.offset != index && pointInside(first, loop: $0.element)
+            }.count % 2 == 0
+        }
+        guard exteriors.count == 1, let exterior = exteriors.first?.element else { return false }
+        let tolerance = PanelLimits.rectangularOutlineToleranceMM
+        /// EN: A middle point is redundant only when it lies on a forward straight segment within tolerance [mm].
+        /// JA: 中間点が許容差 [mm] 以内で順方向の直線分上にある場合だけ、省略可能と判定する。
+        /// DE: Einen Zwischenpunkt nur bei Vorwärtsrichtung innerhalb der Toleranz [mm] als kollinear einstufen.
+        func isStraight(_ a: RoutePoint, _ b: RoutePoint, _ c: RoutePoint) -> Bool {
+            let first = b - a, second = c - b, chord = c - a
+            guard chord.length > tolerance else { return false }
+            return first.x * second.x + first.y * second.y >= 0
+                && abs(cross(first, chord)) / chord.length <= tolerance
+        }
+        var corners: [RoutePoint] = []
+        for point in exterior {
+            if let last = corners.last, (point - last).length <= tolerance { continue }
+            while corners.count >= 2 && isStraight(corners[corners.count - 2], corners[corners.count - 1], point) {
+                corners.removeLast()
+            }
+            corners.append(point)
+        }
+        if corners.count > 1, let first = corners.first, let last = corners.last,
+            (last - first).length <= tolerance
+        {
+            corners.removeLast()
+        }
+        // EN: Also simplify the closing seam when the contour starts halfway along a rectangle edge.
+        // JA: 輪郭の開始点が長方形の辺の途中にある場合、閉じ目の分割点も整理する。
+        // DE: Auch die Schließstelle vereinfachen, wenn die Kontur in der Mitte einer Rechteckkante beginnt.
+        while corners.count >= 3 {
+            if isStraight(corners[corners.count - 2], corners[corners.count - 1], corners[0]) {
+                corners.removeLast()
+            } else if isStraight(corners[corners.count - 1], corners[0], corners[1]) {
+                corners.removeFirst()
+            } else {
+                break
+            }
+        }
+        guard corners.count == 4 else { return false }
+        let sides = corners.indices.map { corners[($0 + 1) % 4] - corners[$0] }
+        guard sides.allSatisfy({ $0.length > tolerance }) else { return false }
+        let orientation = cross(sides[0], sides[1])
+        return sides.indices.allSatisfy { index in
+            let a = sides[index], b = sides[(index + 1) % 4]
+            let cosine = (a.x * b.x + a.y * b.y) / a.length / b.length
+            return abs(cosine) <= PanelLimits.rectangularOutlineAngleTolerance && cross(a, b) * orientation > 0
         }
     }
 
@@ -705,221 +824,89 @@ enum PanelRouting {
     ///
     /// DE: Konturen und Einstellungen prüfen und Fräsdaten sowie Perforationen [mm] aus der Materialvereinigung
     ///     erzeugen. Auch das Ergebnis prüfen.
-    static func plan(contours: [[RoutePoint]], bounds: RouteRect, options o: PanelOptions) throws -> RoutingPlan {
+    static func plan(
+        contours: [[RoutePoint]], bounds: RouteRect, options o: PanelOptions,
+        straightEdges: [RouteSegment]? = nil
+    ) throws -> RoutingPlan {
         try validate(o)
-        try PanelValidation.shape(PanelBoardShape(bounds: bounds, contours: contours), field: "routing.input")
-        let stepX = bounds.maxX - bounds.minX + o.columnGapMM, stepY = bounds.maxY - bounds.minY + o.rowGapMM
-        let arrayMaxX = bounds.maxX + Double(o.columns - 1) * stepX,
-            arrayMaxY = bounds.maxY + Double(o.rows - 1) * stepY
-        let inner = RouteRect(
-            minX: bounds.minX - o.frameGapMM, minY: bounds.minY - o.frameGapMM,
-            maxX: arrayMaxX + o.frameGapMM, maxY: arrayMaxY + o.frameGapMM)
-        let outer = RouteRect(
-            minX: inner.minX - o.verticalFrameMM, minY: inner.minY - o.horizontalFrameMM,
-            maxX: inner.maxX + o.verticalFrameMM, maxY: inner.maxY + o.horizontalFrameMM)
-        let outerLoop = try roundedRectangle(outer, radius: o.panelCornerRadiusMM)
+        try PanelValidation.shape(
+            PanelBoardShape(bounds: bounds, contours: contours), field: TextConstants.Routing.tokenRoutingInput)
+        let sourceLines = straightEdges ?? contours.flatMap { edges($0) }
+        try validatePoints(sourceLines.flatMap { [$0.a, $0.b] })
+        let stepX = bounds.maxX - bounds.minX + o.columnGapMM
+        let stepY = bounds.maxY - bounds.minY + o.rowGapMM
         var boards: [[[RoutePoint]]] = []
+        var lines: [[RouteSegment]] = []
         for row in 0..<o.rows {
             for column in 0..<o.columns {
                 let offset = RoutePoint(x: Double(column) * stepX, y: Double(row) * stepY)
                 boards.append(contours.map { $0.map { $0 + offset } })
+                lines.append(sourceLines.map { RouteSegment(a: $0.a + offset, b: $0.b + offset) })
             }
         }
-        var bridges: [RouteRect] = []
-        var mouseBites: [RoutePoint] = []
-        let sourceHoles = contours.enumerated().filter { index, loop in
-            guard let first = loop.first else { return false }
-            return contours.enumerated().filter { $0.offset != index && pointInside(first, loop: $0.element) }.count % 2
-                == 1
-        }.map { $0.element }
-        var holes: [[RoutePoint]] = []
-        for row in 0..<o.rows {
-            for column in 0..<o.columns {
-                let offset = RoutePoint(x: Double(column) * stepX, y: Double(row) * stepY)
-                holes += sourceHoles.map { $0.map { $0 + offset } }
-            }
-        }
-        if o.addTabs {
-            let half = o.tabWidthMM / 2
-            /// EN: Return intersections [mm] of a tab cross-section with the outline. Throw if none exist.
-            ///
-            /// JA: タブを渡す断面と外形の交点 [mm] を返す。交点がなければ例外とする。
-            ///
-            /// DE: Schnittpunkte [mm] eines Stegquerschnitts mit der Kontur zurückgeben. Bei fehlenden Schnittpunkten
-            ///     einen Fehler auslösen.
-            func crossing(_ board: [[RoutePoint]], value: Double, horizontal: Bool, maximum: Bool) throws -> Double {
-                var intersections: [Double] = []
-                for edge in board.flatMap({ edges($0) }) {
-                    let a = horizontal ? edge.a.y : edge.a.x, b = horizontal ? edge.b.y : edge.b.x
-                    if (a <= value && b > value) || (b <= value && a > value) {
-                        let t = (value - a) / (b - a)
-                        intersections.append(
-                            horizontal ? edge.a.x + t * (edge.b.x - edge.a.x) : edge.a.y + t * (edge.b.y - edge.a.y))
-                    }
+        let array = RouteRect(
+            minX: bounds.minX, minY: bounds.minY,
+            maxX: bounds.maxX + Double(o.columns - 1) * stepX,
+            maxY: bounds.maxY + Double(o.rows - 1) * stepY)
+        return try plan(boards: boards, arrayBounds: array, options: o, straightEdges: lines)
+    }
+
+    /// EN: Find outward-facing straight spans [mm] for frame or board links, excluding arcs and hidden portions.
+    ///     The caller already validates points; straightEdges come from original line/polygon entities, never arc tessellation.
+    /// JA: 円弧と外形に遮られる部分を除き、外枠・隣接基板との接続に使える直線区間 [mm] を求める。
+    ///     座標は呼び出し側で検証済み。straightEdgesには元の直線・ポリゴンだけを渡し、円弧の近似線分は渡さない。
+    /// DE: Sichtbare gerade Abschnitte [mm] für Rahmen- oder Platinenverbindungen ermitteln; Bögen und verdeckte Teile ausschließen.
+    ///     Punkte werden vom Aufrufer geprüft. straightEdges enthält ursprüngliche Linien/Polygone, keine angenäherten Bögen.
+    private static func straightAttachmentSpans(
+        contours: [[RoutePoint]], straightEdges: [RouteSegment], horizontal: Bool, positive: Bool
+    ) throws -> [ClosedRange<Double>] {
+        let tolerance = PanelLimits.rectangularOutlineToleranceMM
+        let outline = contours.flatMap { edges($0) }
+        var result: [ClosedRange<Double>] = []
+        for candidate in straightEdges {
+            try Task.checkCancellation()
+            let start = horizontal ? candidate.a.y : candidate.a.x
+            let end = horizontal ? candidate.b.y : candidate.b.x
+            guard abs(end - start) > tolerance else { continue }
+            let alongStart = horizontal ? candidate.a.x : candidate.a.y
+            let alongEnd = horizontal ? candidate.b.x : candidate.b.y
+            let slope = (alongEnd - alongStart) / (end - start)
+            var visible = [min(start, end)...max(start, end)]
+            for edge in outline {
+                let a = horizontal ? edge.a.y : edge.a.x, b = horizontal ? edge.b.y : edge.b.x
+                guard abs(b - a) > tolerance else { continue }
+                let lower = max(min(start, end), min(a, b)), upper = min(max(start, end), max(a, b))
+                guard upper - lower > tolerance else { continue }
+                let u = horizontal ? edge.a.x : edge.a.y, v = horizontal ? edge.b.x : edge.b.y
+                let edgeSlope = (v - u) / (b - a)
+                let sign = positive ? 1.0 : -1.0
+                let deltaLower = sign * (u + (lower - a) * edgeSlope - alongStart - (lower - start) * slope)
+                let deltaUpper = sign * (u + (upper - a) * edgeSlope - alongStart - (upper - start) * slope)
+                if deltaLower <= tolerance && deltaUpper <= tolerance { continue }
+                var blockedLow = lower, blockedHigh = upper
+                if deltaLower <= tolerance {
+                    blockedLow = lower + (upper - lower) * (tolerance - deltaLower) / (deltaUpper - deltaLower)
+                } else if deltaUpper <= tolerance {
+                    blockedHigh = lower + (upper - lower) * (tolerance - deltaLower) / (deltaUpper - deltaLower)
                 }
-                guard let result = maximum ? intersections.max() : intersections.min() else {
-                    throw RoutingError.invalid(
-                        L10n.text(
-                            "A tab position does not intersect the board. Reduce the tab count or change the outline.",
-                            "タブ位置が基板と交差しません。タブ数または基板外形を調整してください。",
-                            "Eine Stegposition schneidet die Leiterplatte nicht. Verringern Sie die Steganzahl oder ändern Sie die Kontur."
-                        ))
-                }
-                return result
-            }
-            /// EN: Generate hole centers at the configured pitch [mm]. Limit subdivision and total hole counts before
-            ///     integer conversion.
-            ///
-            /// JA: 設定済みピッチ [mm] で穴中心を生成する。整数変換前に分割数と総穴数を制限する。
-            ///
-            /// DE: Bohrungsmittelpunkte im eingestellten Mittenabstand [mm] erzeugen. Unterteilungen und
-            ///     Gesamtbohrungsanzahl vor der Ganzzahlumwandlung begrenzen.
-            func perforate(board: [[RoutePoint]]?, center: Double, horizontal: Bool, maximum: Bool, fixed: Double = 0)
-                throws
-            {
-                guard o.perforateTabs else { return }
-                let intervals = max(1, Int(floor(o.tabWidthMM / o.mouseBitePitchMM)))
-                guard mouseBites.count <= PanelLimits.maxGeneratedHoles - intervals - 1 else {
-                    throw perforationLimitError
-                }
-                for i in 0...intervals {
-                    let transverse = center + (Double(i) - Double(intervals) / 2) * o.mouseBitePitchMM
-                    let along =
-                        try board.map { try crossing($0, value: transverse, horizontal: horizontal, maximum: maximum) }
-                        ?? fixed
-                    mouseBites.append(
-                        horizontal ? RoutePoint(x: along, y: transverse) : RoutePoint(x: transverse, y: along))
-                }
-            }
-            for row in 0..<o.rows {
-                for column in 0..<o.columns {
-                    let board = boards[row * o.columns + column]
-                    for index in 1...o.tabsPerEdge {
-                        let fraction = Double(index) / Double(o.tabsPerEdge + 1)
-                        let y = bounds.minY + Double(row) * stepY + (bounds.maxY - bounds.minY) * fraction
-                        let x = bounds.minX + Double(column) * stepX + (bounds.maxX - bounds.minX) * fraction
-                        if half >= min(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY) / Double(o.tabsPerEdge + 1)
-                            / 2
-                        {
-                            throw RoutingError.invalid(
-                                L10n.text(
-                                    "The tabs are too wide for this board and tab count.", "この基板寸法とタブ数に対してタブ幅が大きすぎます。",
-                                    "Die Stege sind für diese Leiterplattenabmessungen und Steganzahl zu breit."))
+                var remaining: [ClosedRange<Double>] = []
+                for range in visible {
+                    if blockedHigh <= range.lowerBound || blockedLow >= range.upperBound {
+                        remaining.append(range)
+                    } else {
+                        if blockedLow > range.lowerBound + tolerance {
+                            remaining.append(range.lowerBound...blockedLow)
                         }
-                        if column == 0 && o.tabsLeft {
-                            bridges.append(
-                                RouteRect(
-                                    minX: inner.minX - 0.01, minY: y - half,
-                                    maxX: try crossing(board, value: y, horizontal: true, maximum: false)
-                                        + o.tabWidthMM, maxY: y + half))
-                        }
-                        if column == o.columns - 1 && o.tabsRight {
-                            bridges.append(
-                                RouteRect(
-                                    minX: try crossing(board, value: y, horizontal: true, maximum: true) - o.tabWidthMM,
-                                    minY: y - half, maxX: inner.maxX + 0.01, maxY: y + half))
-                        }
-                        if row == 0 && o.tabsTop {
-                            bridges.append(
-                                RouteRect(
-                                    minX: x - half, minY: inner.minY - 0.01, maxX: x + half,
-                                    maxY: try crossing(board, value: x, horizontal: false, maximum: false)
-                                        + o.tabWidthMM))
-                        }
-                        if row == o.rows - 1 && o.tabsBottom {
-                            bridges.append(
-                                RouteRect(
-                                    minX: x - half,
-                                    minY: try crossing(board, value: x, horizontal: false, maximum: true)
-                                        - o.tabWidthMM, maxX: x + half, maxY: inner.maxY + 0.01))
-                        }
-                        if o.connectBoardsWithTabs && column + 1 < o.columns {
-                            let next = boards[row * o.columns + column + 1]
-                            bridges.append(
-                                RouteRect(
-                                    minX: try crossing(board, value: y, horizontal: true, maximum: true) - o.tabWidthMM,
-                                    minY: y - half,
-                                    maxX: try crossing(next, value: y, horizontal: true, maximum: false) + o.tabWidthMM,
-                                    maxY: y + half))
-                        }
-                        if o.connectBoardsWithTabs && row + 1 < o.rows {
-                            let next = boards[(row + 1) * o.columns + column]
-                            bridges.append(
-                                RouteRect(
-                                    minX: x - half,
-                                    minY: try crossing(board, value: x, horizontal: false, maximum: true)
-                                        - o.tabWidthMM,
-                                    maxX: x + half,
-                                    maxY: try crossing(next, value: x, horizontal: false, maximum: false) + o.tabWidthMM
-                                ))
-                        }
-                        if column == 0 && o.tabsLeft {
-                            try perforate(board: board, center: y, horizontal: true, maximum: false)
-                            try perforate(board: nil, center: y, horizontal: true, maximum: false, fixed: inner.minX)
-                        }
-                        if column == o.columns - 1 && o.tabsRight {
-                            try perforate(board: board, center: y, horizontal: true, maximum: true)
-                            try perforate(board: nil, center: y, horizontal: true, maximum: true, fixed: inner.maxX)
-                        }
-                        if row == 0 && o.tabsTop {
-                            try perforate(board: board, center: x, horizontal: false, maximum: false)
-                            try perforate(board: nil, center: x, horizontal: false, maximum: false, fixed: inner.minY)
-                        }
-                        if row == o.rows - 1 && o.tabsBottom {
-                            try perforate(board: board, center: x, horizontal: false, maximum: true)
-                            try perforate(board: nil, center: x, horizontal: false, maximum: true, fixed: inner.maxY)
-                        }
-                        if o.connectBoardsWithTabs && column + 1 < o.columns {
-                            try perforate(board: board, center: y, horizontal: true, maximum: true)
-                            try perforate(
-                                board: boards[row * o.columns + column + 1], center: y, horizontal: true, maximum: false
-                            )
-                        }
-                        if o.connectBoardsWithTabs && row + 1 < o.rows {
-                            try perforate(board: board, center: x, horizontal: false, maximum: true)
-                            try perforate(
-                                board: boards[(row + 1) * o.columns + column], center: x, horizontal: false,
-                                maximum: false)
+                        if blockedHigh < range.upperBound - tolerance {
+                            remaining.append(blockedHigh...range.upperBound)
                         }
                     }
                 }
+                visible = remaining
+                if visible.isEmpty { break }
             }
+            result += visible
         }
-        let segments =
-            boards.flatMap { $0.flatMap { edges($0) } } + edges(inner.points) + edges(outerLoop)
-            + bridges.flatMap { edges($0.points) }
-        let boardBoxes = boards.map { board -> RouteRect in
-            let points = board.flatMap { $0 }
-            return RouteRect(
-                minX: points.map(\.x).min()!, minY: points.map(\.y).min()!, maxX: points.map(\.x).max()!,
-                maxY: points.map(\.y).max()!)
-        }
-        /// EN: Return whether material remains at validated coordinates, considering the frame, boards, tabs and
-        ///     cutouts.
-        ///
-        /// JA: 検証済みの座標で材料が残るか返す。外枠・基板・タブと切り抜きの関係を評価する。
-        ///
-        /// DE: Prüfen, ob an geprüften Koordinaten Material verbleibt; Rahmen, Platinen, Stege und Ausschnitte
-        ///     berücksichtigen.
-        func material(_ p: RoutePoint) -> Bool {
-            if holes.contains(where: { pointInside(p, loop: $0) }) { return false }
-            guard pointInside(p, loop: outerLoop) else { return false }
-            if !inner.contains(p) { return true }
-            if bridges.contains(where: { $0.contains(p) }) { return true }
-            for index in boards.indices where boardBoxes[index].contains(p) {
-                let board = boards[index]
-                var inside = false
-                for loop in board where pointInside(p, loop: loop) { inside.toggle() }
-                if inside { return true }
-            }
-            return false
-        }
-        var seen: Set<String> = []
-        let uniqueHoles = mouseBites.filter {
-            seen.insert("\(($0.x * 1e6).rounded()),\(($0.y * 1e6).rounded())").inserted
-        }
-        let result = RoutingPlan(segments: try unionBoundary(segments, material: material), mouseBites: uniqueHoles)
-        try PanelValidation.routing(result, inside: outer)
         return result
     }
 
@@ -930,13 +917,17 @@ enum PanelRouting {
     ///
     /// DE: Fräsdaten für unterschiedliche, bereits in Panelkoordinaten verschobene Platinen erzeugen. Jede Seite in
     ///     nutzbare Abschnitte unterteilen, damit Stege keine andere Platine durchqueren.
-    static func plan(boards: [[[RoutePoint]]], arrayBounds: RouteRect, options o: PanelOptions) throws -> RoutingPlan {
+    static func plan(
+        boards: [[[RoutePoint]]], arrayBounds: RouteRect, options o: PanelOptions,
+        straightEdges: [[RouteSegment]]? = nil
+    ) throws -> RoutingPlan {
         try validate(o)
         guard !boards.isEmpty, boards.allSatisfy({ !$0.isEmpty && $0.allSatisfy { $0.count >= 3 } }) else {
             throw RoutingError.invalid(
                 L10n.text(
-                    "No closed board outline was found.", "閉じた基板外形が見つかりません。",
-                    "Es wurde keine geschlossene Leiterplattenkontur gefunden."))
+                    TextConstants.Routing.noClosedBoardOutlineWasFoundEnglish,
+                    TextConstants.Routing.noClosedBoardOutlineWasFoundJapanese,
+                    TextConstants.Routing.noClosedBoardOutlineWasFoundGerman))
         }
         try validatePoints(boards.flatMap { $0.flatMap { $0 } })
         let boxes = boards.map { board -> RouteRect in
@@ -944,6 +935,17 @@ enum PanelRouting {
             return RouteRect(
                 minX: points.map(\.x).min()!, minY: points.map(\.y).min()!,
                 maxX: points.map(\.x).max()!, maxY: points.map(\.y).max()!)
+        }
+        let sourceLines = straightEdges ?? boards.map { $0.flatMap { edges($0) } }
+        guard sourceLines.count == boards.count else {
+            throw PanelValidation.invalid(
+                TextConstants.Routing.tokenRoutingStraightEdges, TextConstants.Routing.textOneLineSetPerBoard)
+        }
+        for index in boards.indices {
+            try validatePoints(sourceLines[index].flatMap { [$0.a, $0.b] })
+            try PanelValidation.validateContained(
+                sourceLines[index].flatMap { [$0.a, $0.b] }, in: boxes[index],
+                field: TextConstants.Routing.tokenRoutingStraightEdges)
         }
         let inner = RouteRect(
             minX: arrayBounds.minX - o.frameGapMM, minY: arrayBounds.minY - o.frameGapMM,
@@ -982,14 +984,36 @@ enum PanelRouting {
             guard let hit = maximum ? hits.max() : hits.min() else {
                 throw RoutingError.invalid(
                     L10n.text(
-                        "A tab does not intersect the board outline. Reduce the tab width or change the layout.",
-                        "タブが基板外形と交差しません。タブ幅を小さくするか、配置を変更してください。",
-                        "Ein Steg schneidet die Leiterplattenkontur nicht. Verringern Sie die Stegbreite oder ändern Sie die Anordnung."
+                        TextConstants.Routing.aTabDoesNotIntersectTheBoardOutlineReduceEnglish,
+                        TextConstants.Routing.aTabDoesNotIntersectTheBoardOutlineReduceJapanese,
+                        TextConstants.Routing.aTabDoesNotIntersectTheBoardOutlineReduceGerman
                     ))
             }
             return hit
         }
         if o.addTabs {
+            // EN: Cache four facing directions per board; repeated source/target checks reuse the same intervals [mm].
+            // JA: 基板ごとに4方向の区間 [mm] を保存し、接続元と接続先で同じ計算を繰り返さない。
+            // DE: Vier Richtungen je Platine zwischenspeichern und Intervalle [mm] für beide Verbindungsseiten wiederverwenden.
+            var straightSpanCache: [Int: [ClosedRange<Double>]] = [:]
+            /// EN: Return validated-board straight intervals toward the requested side, reusing cached results.
+            /// JA: 指定された側を向く検証済み基板の直線区間を、保存済みの結果を再利用して返す。
+            /// DE: Gerade Intervalle der geprüften Platine in der gewünschten Richtung aus dem Zwischenspeicher zurückgeben.
+            func visibleStraightSpans(index: Int, horizontal: Bool, positive: Bool) throws -> [ClosedRange<Double>] {
+                guard boards.indices.contains(index) else {
+                    throw PanelValidation.invalid(
+                        TextConstants.Routing.tokenRoutingStraightSpanIndex,
+                        TextConstants.Routing.textExistingBoardIndex)
+                }
+                let key = index * 4 + (horizontal ? 0 : 2) + (positive ? 1 : 0)
+                if let cached = straightSpanCache[key] { return cached }
+                let ranges = try straightAttachmentSpans(
+                    contours: boards[index], straightEdges: sourceLines[index], horizontal: horizontal,
+                    positive: positive)
+                straightSpanCache[key] = ranges
+                return ranges
+            }
+            let requiresFrameConnection = try boards.map { try hasRectangularExterior($0) }
             for index in boards.indices {
                 let box = boxes[index]
                 for horizontal in [true, false] {
@@ -1029,7 +1053,35 @@ enum PanelRouting {
                                 spans.append((a, b, target))
                             }
                         }
+                        let sourceSpans = try visibleStraightSpans(
+                            index: index, horizontal: horizontal, positive: positive)
+                        // EN: Both ends of a board-to-board tab must lie on facing straight sections over its full width.
+                        //     Intersect source/target spans before reserving hole-radius clearance from all section ends.
+                        // JA: 基板間タブは全幅にわたって両端が向かい合う直線に接続する必要がある。
+                        //     両基板の直線区間の重なりを求め、区間の両端から穴半径分の余裕も確保する。
+                        // DE: Beide Enden eines Platinenstegs müssen über die ganze Breite auf gegenüberliegenden Geraden liegen.
+                        //     Quell-/Zielintervalle schneiden und an allen Enden den Bohrungsradius freihalten.
+                        var attachmentSpans: [(low: Double, high: Double, target: Int?)] = []
+                        let holeMargin = o.perforateTabs ? o.mouseBiteDiameterMM / 2 : 0
                         for span in spans {
+                            if span.target != nil && (!o.connectBoardsWithTabs || !positive) { continue }
+                            let targetSpans: [ClosedRange<Double>]
+                            if let target = span.target {
+                                targetSpans = try visibleStraightSpans(
+                                    index: target, horizontal: horizontal, positive: !positive)
+                            } else {
+                                targetSpans = [span.low...span.high]
+                            }
+                            for source in sourceSpans {
+                                for target in targetSpans {
+                                    let low = max(span.low, source.lowerBound, target.lowerBound) + holeMargin
+                                    let high = min(span.high, source.upperBound, target.upperBound) - holeMargin
+                                    guard high > low else { continue }
+                                    attachmentSpans.append((low, high, span.target))
+                                }
+                            }
+                        }
+                        for span in attachmentSpans {
                             if span.target != nil && (!o.connectBoardsWithTabs || !positive) { continue }
                             let frameEnabled =
                                 horizontal
@@ -1052,7 +1104,25 @@ enum PanelRouting {
                                     try span.target.map {
                                         try crossing($0, transverse: center, horizontal: horizontal, maximum: !positive)
                                     } ?? fixed
-                                let alongLow = min(start, end) - 0.01, alongHigh = max(start, end) + 0.01
+                                // EN: Cover the full width on both straight interfaces, including sloped edges.
+                                // JA: 斜めの辺も含め、接続する両方の直線にタブ全幅が届くようにする。
+                                // DE: Die gesamte Stegbreite an beiden geraden Schnittstellen erreichen, auch an schrägen Kanten.
+                                let sourceFirst = try crossing(
+                                    index, transverse: center - half, horizontal: horizontal, maximum: positive)
+                                let sourceLast = try crossing(
+                                    index, transverse: center + half, horizontal: horizontal, maximum: positive)
+                                var attachmentLow = min(start, sourceFirst, sourceLast)
+                                var attachmentHigh = max(start, sourceFirst, sourceLast)
+                                if let target = span.target {
+                                    let targetFirst = try crossing(
+                                        target, transverse: center - half, horizontal: horizontal, maximum: !positive)
+                                    let targetLast = try crossing(
+                                        target, transverse: center + half, horizontal: horizontal, maximum: !positive)
+                                    attachmentLow = min(attachmentLow, targetFirst, targetLast)
+                                    attachmentHigh = max(attachmentHigh, targetFirst, targetLast)
+                                }
+                                let alongLow = min(attachmentLow, end) - 0.01
+                                let alongHigh = max(attachmentHigh, end) + 0.01
                                 let bridge =
                                     horizontal
                                     ? RouteRect(
@@ -1093,12 +1163,15 @@ enum PanelRouting {
             while let current = pending.popLast() {
                 for next in links[current] where reached.insert(next).inserted { pending.append(next) }
             }
-            guard boards.indices.allSatisfy({ reached.contains($0) }) else {
+            // EN: Keep rectangle connectivity checks. Irregular boards may intentionally lack a wide enough straight span.
+            // JA: 長方形基板の接続検証は維持する。異形基板では幅の足りる直線がなく、タブを省く場合がある。
+            // DE: Die Verbindungsprüfung für Rechtecke beibehalten. Bei Sonderformen kann ein ausreichend gerader Abschnitt fehlen.
+            guard boards.indices.filter({ requiresFrameConnection[$0] }).allSatisfy({ reached.contains($0) }) else {
                 throw RoutingError.invalid(
                     L10n.text(
-                        "Some boards cannot connect to the frame with these tabs. Enable more frame sides, connect adjacent boards, or reduce the tab width.",
-                        "現在のタブ設定では外枠に繋がらない基板があります。接続辺や基板間タブを有効にするか、タブ幅を小さくしてください。",
-                        "Einige Leiterplatten können mit diesen Stegen nicht mit dem Rahmen verbunden werden. Aktivieren Sie weitere Rahmenseiten oder Verbindungen zwischen Leiterplatten, oder verringern Sie die Stegbreite."
+                        TextConstants.Routing.someBoardsCannotConnectToTheFrameWithTheseEnglish,
+                        TextConstants.Routing.someBoardsCannotConnectToTheFrameWithTheseJapanese,
+                        TextConstants.Routing.someBoardsCannotConnectToTheFrameWithTheseGerman
                     ))
             }
         }
@@ -1121,7 +1194,10 @@ enum PanelRouting {
             return false
         }
         var seen = Set<String>()
-        let uniqueBites = bites.filter { seen.insert("\(($0.x * 1e6).rounded()),\(($0.y * 1e6).rounded())").inserted }
+        let uniqueBites = bites.filter {
+            seen.insert(TextConstants.Routing.coordinateKeyTemplate(($0.x * 1e6).rounded(), ($0.y * 1e6).rounded()))
+                .inserted
+        }
         let result = RoutingPlan(segments: try unionBoundary(segments, material: material), mouseBites: uniqueBites)
         try PanelValidation.routing(result, inside: outer)
         return result
@@ -1216,8 +1292,11 @@ enum PanelRouting {
                 let left = material(midpoint + normal), right = material(midpoint - normal)
                 if left == right { continue }
                 let start = snap(left ? a : b), end = snap(left ? b : a)
-                let keys = ["\(start.x),\(start.y)", "\(end.x),\(end.y)"].sorted()
-                if start != end && seen.insert(keys.joined(separator: ":")).inserted {
+                let keys = [
+                    TextConstants.Routing.coordinateKeyTemplate(start.x, start.y),
+                    TextConstants.Routing.coordinateKeyTemplate(end.x, end.y),
+                ].sorted()
+                if start != end && seen.insert(keys.joined(separator: TextConstants.Common.colon)).inserted {
                     result.append(RouteSegment(a: start, b: end))
                 }
             }
@@ -1236,10 +1315,16 @@ enum L10n {
         for identifier in Locale.preferredLanguages {
             let code =
                 identifier.lowercased()
-                .split(whereSeparator: { $0 == "-" || $0 == "_" }).first.map(String.init) ?? ""
-            if ["en", "ja", "de"].contains(code) { return code }
+                .split(whereSeparator: {
+                    $0 == TextConstants.Characters.hyphen || $0 == TextConstants.Characters.underscore
+                }).first.map(String.init) ?? TextConstants.Common.empty
+            if [TextConstants.Routing.tokenEn, TextConstants.Routing.tokenJa, TextConstants.Routing.tokenDe].contains(
+                code)
+            {
+                return code
+            }
         }
-        return "en"
+        return TextConstants.Routing.tokenEn
     }
 
     /// EN: Select English, Japanese or German strings using OS language preferences. Fall back to English if none are
@@ -1251,8 +1336,8 @@ enum L10n {
     ///     ausschließlich nicht unterstützten Sprachen Englisch verwenden.
     static func text(_ english: String, _ japanese: String, _ german: String) -> String {
         switch language {
-        case "ja": return japanese
-        case "de": return german
+        case TextConstants.Routing.tokenJa: return japanese
+        case TextConstants.Routing.tokenDe: return german
         default: return english
         }
     }

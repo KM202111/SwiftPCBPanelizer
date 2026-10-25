@@ -27,11 +27,15 @@ import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
 
+// EN: String/character literals are defined in TextConstants.App, Common and Characters; variable text uses constant templates.
+// JA: 文字列・文字リテラルはTextConstants.App・Common・Charactersに定義し、可変文は定数テンプレートから生成する。
+// DE: Zeichenketten-/Zeichenliterale stehen in TextConstants.App, Common und Characters; variable Texte nutzen konstante Vorlagen.
+
 @main
 struct SwiftPCBPanelizerApp: App {
     @NSApplicationDelegateAdaptor(PanelizerApplicationDelegate.self) private var applicationDelegate
     var body: some Scene {
-        WindowGroup("SwiftPCBPanelizer") {
+        WindowGroup(TextConstants.App.applicationNameKey) {
             PanelizerHomeView()
                 .frame(minWidth: 1080, minHeight: 760)
                 .interfaceTypography()
@@ -54,7 +58,7 @@ struct SwiftPCBPanelizerApp: App {
 @MainActor
 private enum PanelizerIcon {
     static let image: NSImage = {
-        if let artwork = NSImage(named: NSImage.Name("PanelizerArtwork")), artwork.isValid,
+        if let artwork = NSImage(named: NSImage.Name(TextConstants.App.artworkAssetName)), artwork.isValid,
             artwork.size.width.isFinite, artwork.size.width > 0,
             artwork.size.height.isFinite, artwork.size.height > 0
         {
@@ -63,7 +67,8 @@ private enum PanelizerIcon {
         // EN: If the dedicated artwork cannot be loaded, read the bundled ICNS before falling back to AppKit.
         // JA: 専用画像を読み込めない場合は、同梱ICNSを試してからAppKitの既定アイコンに戻す。
         // DE: Bei fehlender Grafik zuerst die mitgelieferte ICNS-Datei laden, danach auf AppKit zurückfallen.
-        if let url = Bundle.main.url(forResource: "AppIcon", withExtension: "icns"),
+        if let url = Bundle.main.url(
+            forResource: TextConstants.App.appIconAssetName, withExtension: TextConstants.App.tokenIcns),
             let bundledIcon = NSImage(contentsOf: url), bundledIcon.isValid,
             bundledIcon.size.width.isFinite, bundledIcon.size.width > 0,
             bundledIcon.size.height.isFinite, bundledIcon.size.height > 0
@@ -113,7 +118,7 @@ private struct PanelizerHomeView: View {
     @State private var isProcessing = false
     @State private var previewSelection: UUID?
     @State private var isGeneratingArtwork = false
-    @State private var artworkStatus = ""
+    @State private var artworkStatus = TextConstants.Common.empty
 
     private var isMixedPanel: Bool { documents.count > 1 }
     private var includesBothFormats: Bool {
@@ -158,10 +163,10 @@ private struct PanelizerHomeView: View {
             if case .failure(let error) = result { present(error.localizedDescription) }
         }
         .onDrop(of: [UTType.fileURL.identifier], isTargeted: $isDropTargeted, perform: acceptDrop)
-        .alert("SwiftPCBPanelizer", isPresented: $isShowingNotice) {
-            Button("OK", role: .cancel) {}
+        .alert(TextConstants.App.applicationNameKey, isPresented: $isShowingNotice) {
+            Button(TextConstants.Common.tokenOKKey, role: .cancel) {}
         } message: {
-            Text(notice ?? "")
+            Text(notice ?? TextConstants.Common.empty)
         }
         .overlay {
             if isProcessing {
@@ -171,7 +176,9 @@ private struct PanelizerHomeView: View {
                         ProgressView()
                         Text(
                             L10n.text(
-                                "Duplicating board data…", "基板データを複製しています…", "Leiterplattendaten werden dupliziert…"))
+                                TextConstants.App.duplicatingBoardDataEnglish,
+                                TextConstants.App.duplicatingBoardDataJapanese,
+                                TextConstants.App.duplicatingBoardDataGerman))
                     }
                     .padding(26)
                     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18))
@@ -190,8 +197,12 @@ private struct PanelizerHomeView: View {
                     .frame(width: 44, height: 44)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("SwiftPCBPanelizer").interfaceFont(.headline)
-                    Text(L10n.text("PCB panelization", "基板面付け", "Leiterplattennutzen")).interfaceFont(.caption)
+                    Text(TextConstants.App.applicationNameKey).interfaceFont(.headline)
+                    Text(
+                        L10n.text(
+                            TextConstants.App.pcbPanelizationEnglish, TextConstants.App.pcbPanelizationJapanese,
+                            TextConstants.App.pcbPanelizationGerman)
+                    ).interfaceFont(.caption)
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -199,25 +210,37 @@ private struct PanelizerHomeView: View {
             .padding(18)
 
             HStack {
-                Text(L10n.text("Board files", "基板ファイル", "Leiterplattendateien")).interfaceFont(
+                Text(
+                    L10n.text(
+                        TextConstants.App.boardFilesEnglish, TextConstants.App.boardFilesJapanese,
+                        TextConstants.App.boardFilesGerman)
+                ).interfaceFont(
                     .caption, weight: .semibold
                 ).foregroundStyle(.secondary)
                 Spacer()
-                Text("\(documents.count)").interfaceFont(.caption, weight: .medium, monospaced: true).foregroundStyle(
+                Text(TextConstants.App.localizedInterpolatedValueTemplate(documents.count)).interfaceFont(
+                    .caption, weight: .medium, monospaced: true
+                ).foregroundStyle(
                     .secondary)
             }
             .padding(.horizontal, 18).padding(.bottom, 8)
 
             if documents.isEmpty {
                 VStack(spacing: 10) {
-                    Image(systemName: "doc.badge.plus").font(.system(size: 28)).foregroundStyle(.tertiary)
-                    Text(L10n.text("No files added", "まだファイルがありません", "Keine Dateien hinzugefügt")).interfaceFont(
+                    Image(systemName: TextConstants.App.tokenDocBadgePlus).font(.system(size: 28)).foregroundStyle(
+                        .tertiary)
+                    Text(
+                        L10n.text(
+                            TextConstants.App.noFilesAddedEnglish, TextConstants.App.noFilesAddedJapanese,
+                            TextConstants.App.noFilesAddedGerman)
+                    ).interfaceFont(
                         .subheadline
                     ).foregroundStyle(.secondary)
                     Text(
                         L10n.text(
-                            "Add .kicad_pcb or .brd files", ".kicad_pcb または .brd を追加",
-                            ".kicad_pcb- oder .brd-Dateien hinzufügen")
+                            TextConstants.App.addKicadPcbOrBrdFilesEnglish,
+                            TextConstants.App.addKicadPcbOrBrdFilesJapanese,
+                            TextConstants.App.addKicadPcbOrBrdFilesGerman)
                     )
                     .interfaceFont(.caption2).foregroundStyle(.tertiary).multilineTextAlignment(.center)
                 }
@@ -226,14 +249,17 @@ private struct PanelizerHomeView: View {
                 List(selection: $previewSelection) {
                     ForEach(documents) { document in
                         HStack(spacing: 10) {
-                            Image(systemName: document.kind == .kicad ? "cpu" : "doc.text.magnifyingglass")
-                                .foregroundStyle(document.kind.color)
-                                .frame(width: 24)
+                            Image(
+                                systemName: document.kind == .kicad
+                                    ? TextConstants.App.tokenCpu : TextConstants.App.tokenDocTextMagnifyingglass
+                            )
+                            .foregroundStyle(document.kind.color)
+                            .frame(width: 24)
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(document.url.lastPathComponent).lineLimit(1).truncationMode(.middle)
                                 Text(
                                     String(
-                                        format: "%.1f × %.1f mm", document.summary.boardWidthMM,
+                                        format: TextConstants.App.dimensionsMMFormat, document.summary.boardWidthMM,
                                         document.summary.boardHeightMM)
                                 )
                                 .interfaceFont(.caption2, monospaced: true).foregroundStyle(.secondary)
@@ -243,8 +269,11 @@ private struct PanelizerHomeView: View {
                         .padding(.vertical, 4)
                         .tag(document.id)
                         .contextMenu {
-                            Button(L10n.text("Remove from list", "リストから削除", "Aus Liste entfernen"), role: .destructive)
-                            { remove(document) }
+                            Button(
+                                L10n.text(
+                                    TextConstants.App.removeFromListEnglish, TextConstants.App.removeFromListJapanese,
+                                    TextConstants.App.removeFromListGerman), role: .destructive
+                            ) { remove(document) }
                         }
                     }
                     .onDelete { offsets in documents.remove(atOffsets: offsets) }
@@ -255,8 +284,12 @@ private struct PanelizerHomeView: View {
             Button {
                 showFilePicker = true
             } label: {
-                Label(L10n.text("Add boards", "基板を追加", "Leiterplatten hinzufügen"), systemImage: "plus")
-                    .frame(maxWidth: .infinity)
+                Label(
+                    L10n.text(
+                        TextConstants.App.addBoardsEnglish, TextConstants.App.addBoardsJapanese,
+                        TextConstants.App.addBoardsGerman), systemImage: TextConstants.App.tokenPlus
+                )
+                .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)
             .padding(14)
@@ -268,19 +301,28 @@ private struct PanelizerHomeView: View {
     private var header: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 7) {
-                Text(L10n.text("Arrange boards in a panel", "基板をパネルに配置", "Leiterplatten zu einem Nutzen anordnen"))
-                    .interfaceFont(.hero, weight: .bold, design: .rounded)
                 Text(
                     L10n.text(
-                        "Create panel boards from EAGLE and KiCad designs.", "EAGLEとKiCadの基板データを複製し、製造用のパネル基板を作成します。",
-                        "Nutzen aus EAGLE- und KiCad-Leiterplatten erstellen.")
+                        TextConstants.App.pcbPanelizationEnglish, TextConstants.App.panelizationHeadingJapanese,
+                        TextConstants.App.panelizationHeadingGerman)
+                )
+                .interfaceFont(.hero, weight: .bold, design: .rounded)
+                Text(
+                    L10n.text(
+                        TextConstants.App.createPanelBoardsFromEAGLEAndKiCadDesignsEnglish,
+                        TextConstants.App.createPanelBoardsFromEAGLEAndKiCadDesignsJapanese,
+                        TextConstants.App.createPanelBoardsFromEAGLEAndKiCadDesignsGerman)
                 )
                 .interfaceFont(.subheadline).foregroundStyle(.secondary)
             }
             Spacer()
             HStack(spacing: 7) {
-                Image(systemName: "checkmark.seal.fill").foregroundStyle(.green)
-                Text(L10n.text("Processed locally", "ローカル処理", "Lokale Verarbeitung")).interfaceFont(
+                Image(systemName: TextConstants.App.tokenCheckmarkSealFill).foregroundStyle(.green)
+                Text(
+                    L10n.text(
+                        TextConstants.App.processedLocallyEnglish, TextConstants.App.processedLocallyJapanese,
+                        TextConstants.App.processedLocallyGerman)
+                ).interfaceFont(
                     .caption, weight: .medium)
             }
             .padding(.horizontal, 12).padding(.vertical, 8)
@@ -290,24 +332,32 @@ private struct PanelizerHomeView: View {
 
     private var boardImportStrip: some View {
         HStack(spacing: 14) {
-            Image(systemName: "arrow.down.doc.fill")
+            Image(systemName: TextConstants.App.tokenArrowDownDocFill)
                 .interfaceFont(.title2).foregroundStyle(.indigo)
                 .frame(width: 46, height: 46).background(.indigo.opacity(0.09), in: RoundedRectangle(cornerRadius: 13))
             VStack(alignment: .leading, spacing: 3) {
-                Text(L10n.text("Import board files", "基板データを読み込む", "Leiterplattendateien importieren")).interfaceFont(
+                Text(
+                    L10n.text(
+                        TextConstants.App.importBoardFilesEnglish, TextConstants.App.importBoardFilesJapanese,
+                        TextConstants.App.importBoardFilesGerman)
+                ).interfaceFont(
                     .subheadline, weight: .semibold)
                 Text(
                     L10n.text(
-                        "KiCad .kicad_pcb / EAGLE .brd · Multiple files and drag & drop",
-                        "KiCad .kicad_pcb / EAGLE .brd · 複数ファイル・ドラッグ＆ドロップ対応",
-                        "KiCad .kicad_pcb / EAGLE .brd · Mehrere Dateien und Drag-and-drop")
+                        TextConstants.App.kicadKicadPcbEAGLEBrdMultipleFilesAndDragEnglish,
+                        TextConstants.App.kicadKicadPcbEAGLEBrdMultipleFilesAndDragJapanese,
+                        TextConstants.App.kicadKicadPcbEAGLEBrdMultipleFilesAndDragGerman)
                 )
                 .interfaceFont(.caption).foregroundStyle(.secondary)
             }
             Spacer()
-            Button(L10n.text("Choose files", "ファイルを選択", "Dateien auswählen")) { showFilePicker = true }
-                .buttonStyle(.borderedProminent)
-                .tint(.indigo)
+            Button(
+                L10n.text(
+                    TextConstants.App.chooseFilesEnglish, TextConstants.App.chooseFilesJapanese,
+                    TextConstants.App.chooseFilesGerman)
+            ) { showFilePicker = true }
+            .buttonStyle(.borderedProminent)
+            .tint(.indigo)
         }
         .padding(16)
         .background(.background, in: RoundedRectangle(cornerRadius: 16))
@@ -319,51 +369,80 @@ private struct PanelizerHomeView: View {
     private var layoutSection: some View {
         VStack(alignment: .leading, spacing: 15) {
             sectionHeading(
-                "01", title: L10n.text("Array and spacing", "配列と間隔", "Anordnung und Abstände"),
+                TextConstants.App.number01,
+                title: L10n.text(
+                    TextConstants.App.arrayAndSpacingEnglish, TextConstants.App.arrayAndSpacingJapanese,
+                    TextConstants.App.arrayAndSpacingGerman),
                 subtitle: isMixedPanel
                     ? L10n.text(
-                        "Each file is placed once in one panel. Columns control wrapping; rows are calculated automatically.",
-                        "各ファイルを1枚ずつ同じパネルに配置します。列数で折り返し、行数は自動計算します。",
-                        "Jede Datei wird einmal im selben Nutzen platziert. Die Spaltenanzahl bestimmt den Umbruch; die Zeilenanzahl wird automatisch berechnet."
+                        TextConstants.App.eachFileIsPlacedOnceInOnePanelColumnsEnglish,
+                        TextConstants.App.eachFileIsPlacedOnceInOnePanelColumnsJapanese,
+                        TextConstants.App.eachFileIsPlacedOnceInOnePanelColumnsGerman
                     )
                     : L10n.text(
-                        "Arrange boards using their outline dimensions", "基板外形を基準に行列へ並べます",
-                        "Leiterplatten anhand ihrer Konturabmessungen anordnen"))
+                        TextConstants.App.arrangeBoardsUsingTheirOutlineDimensionsEnglish,
+                        TextConstants.App.arrangeBoardsUsingTheirOutlineDimensionsJapanese,
+                        TextConstants.App.arrangeBoardsUsingTheirOutlineDimensionsGerman))
             LazyVGrid(
                 columns: [GridItem(.adaptive(minimum: 200 * textScale), spacing: 14)], alignment: .leading, spacing: 14
             ) {
-                settingCard(title: L10n.text("Columns", "列数", "Spalten"), symbol: "rectangle.split.3x1") {
+                settingCard(
+                    title: L10n.text(
+                        TextConstants.App.columnsEnglish, TextConstants.App.columnsJapanese,
+                        TextConstants.App.columnsGerman), symbol: TextConstants.App.tokenRectangleSplitX1
+                ) {
                     Stepper(value: $options.columns, in: 1...20) {
                         Text(
                             L10n.text(
-                                "\(options.columns) columns", "\(options.columns) 列",
-                                "\(options.columns) \(options.columns == 1 ? "Spalte" : "Spalten")")
+                                TextConstants.App.optionsColumnsColumnsEnglishTemplate(options.columns),
+                                TextConstants.App.optionsColumnsColumnsJapaneseTemplate(options.columns),
+                                TextConstants.App.optionsColumnsColumnsGermanTemplate(
+                                    options.columns,
+                                    options.columns == 1
+                                        ? TextConstants.App.tokenSpalte : TextConstants.App.columnsGerman))
                         ).interfaceFont(.title3, weight: .semibold, monospaced: true)
                     }
                 }
-                settingCard(title: L10n.text("Rows", "行数", "Zeilen"), symbol: "rectangle.split.1x3") {
+                settingCard(
+                    title: L10n.text(
+                        TextConstants.App.rowsEnglish, TextConstants.App.rowsJapanese, TextConstants.App.rowsGerman),
+                    symbol: TextConstants.App.tokenRectangleSplitX3
+                ) {
                     if isMixedPanel {
                         Text(
                             L10n.text(
-                                "\(displayedRows) rows · Auto", "\(displayedRows) 行・自動",
-                                "\(displayedRows) \(displayedRows == 1 ? "Zeile" : "Zeilen") · Automatisch")
+                                TextConstants.App.displayedrowsRowsAutoEnglishTemplate(displayedRows),
+                                TextConstants.App.displayedrowsRowsAutoJapaneseTemplate(displayedRows),
+                                TextConstants.App.displayedrowsRowsAutoGermanTemplate(
+                                    displayedRows,
+                                    displayedRows == 1 ? TextConstants.App.tokenZeile : TextConstants.App.rowsGerman))
                         ).interfaceFont(.title3, weight: .semibold, monospaced: true)
                     } else {
                         Stepper(value: $options.rows, in: 1...20) {
                             Text(
                                 L10n.text(
-                                    "\(options.rows) rows", "\(options.rows) 行",
-                                    "\(options.rows) \(options.rows == 1 ? "Zeile" : "Zeilen")")
+                                    TextConstants.App.optionsRowsRowsEnglishTemplate(options.rows),
+                                    TextConstants.App.optionsRowsRowsJapaneseTemplate(options.rows),
+                                    TextConstants.App.optionsColumnsColumnsGermanTemplate(
+                                        options.rows,
+                                        options.rows == 1 ? TextConstants.App.tokenZeile : TextConstants.App.rowsGerman)
+                                )
                             ).interfaceFont(.title3, weight: .semibold, monospaced: true)
                         }
                     }
                 }
                 settingCard(
-                    title: L10n.text("Column spacing", "横方向の間隔", "Spaltenabstand"), symbol: "arrow.left.and.right"
+                    title: L10n.text(
+                        TextConstants.Common.columnSpacingEnglish, TextConstants.App.columnSpacingJapanese,
+                        TextConstants.Common.columnSpacingGerman), symbol: TextConstants.App.tokenArrowLeftAndRight
                 ) {
                     measurementField(value: $options.columnGapMM)
                 }
-                settingCard(title: L10n.text("Row spacing", "縦方向の間隔", "Zeilenabstand"), symbol: "arrow.up.and.down") {
+                settingCard(
+                    title: L10n.text(
+                        TextConstants.Common.rowSpacingEnglish, TextConstants.App.rowSpacingJapanese,
+                        TextConstants.Common.rowSpacingGerman), symbol: TextConstants.App.tokenArrowUpAndDown
+                ) {
                     measurementField(value: $options.rowGapMM)
                 }
             }
@@ -380,10 +459,14 @@ private struct PanelizerHomeView: View {
     private var panelSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             sectionHeading(
-                "02", title: L10n.text("Frame and routing", "外枠と加工ガイド", "Rahmen und Bearbeitung"),
+                TextConstants.App.number02,
+                title: L10n.text(
+                    TextConstants.App.frameAndRoutingEnglish, TextConstants.App.frameAndRoutingJapanese,
+                    TextConstants.App.frameAndRoutingGerman),
                 subtitle: L10n.text(
-                    "Set up the frame, connecting tabs and machining features", "外枠・接続タブ・加工ガイド・取付穴を設定します",
-                    "Rahmen, Verbindungsstege und Bearbeitungsmerkmale einstellen"))
+                    TextConstants.App.setUpTheFrameConnectingTabsAndMachiningFeaturesEnglish,
+                    TextConstants.App.setUpTheFrameConnectingTabsAndMachiningFeaturesJapanese,
+                    TextConstants.App.setUpTheFrameConnectingTabsAndMachiningFeaturesGerman))
             frameSettingsCard
             tabSettingsCard
             LazyVGrid(
@@ -398,33 +481,46 @@ private struct PanelizerHomeView: View {
 
     private var frameSettingsCard: some View {
         routingCard(
-            title: L10n.text("Frame", "外枠", "Rahmen"),
+            title: L10n.text(
+                TextConstants.App.frameEnglish, TextConstants.App.frameJapanese, TextConstants.App.frameGerman),
             subtitle: L10n.text(
-                "Rail widths, board clearance and corner shape", "外枠の幅、基板との隙間、角の形状",
-                "Rahmenbreiten, Leiterplattenabstand und Eckenform"), symbol: "rectangle"
+                TextConstants.App.railWidthsBoardClearanceAndCornerShapeEnglish,
+                TextConstants.App.railWidthsBoardClearanceAndCornerShapeJapanese,
+                TextConstants.App.railWidthsBoardClearanceAndCornerShapeGerman),
+            symbol: TextConstants.Common.tokenRectangle
         ) {
             LazyVGrid(columns: pairedSettingsColumns, alignment: .leading, spacing: 18) {
                 labeledMeasurement(
-                    L10n.text("Left/right frame width", "左右の外枠幅", "Rahmenbreite links/rechts"),
+                    L10n.text(
+                        TextConstants.App.leftRightFrameWidthEnglish, TextConstants.App.leftRightFrameWidthJapanese,
+                        TextConstants.App.leftRightFrameWidthGerman),
                     value: $options.verticalFrameMM)
                 labeledMeasurement(
-                    L10n.text("Top/bottom frame width", "上下の外枠幅", "Rahmenbreite oben/unten"),
+                    L10n.text(
+                        TextConstants.App.topBottomFrameWidthEnglish, TextConstants.App.topBottomFrameWidthJapanese,
+                        TextConstants.App.topBottomFrameWidthGerman),
                     value: $options.horizontalFrameMM)
                 labeledMeasurement(
-                    L10n.text("Frame clearance", "外枠と基板の隙間", "Abstand zum Rahmen"), value: $options.frameGapMM)
+                    L10n.text(
+                        TextConstants.App.frameClearanceEnglish, TextConstants.App.frameClearanceJapanese,
+                        TextConstants.App.frameClearanceGerman), value: $options.frameGapMM)
                 labeledMeasurement(
-                    L10n.text("Panel corner radius", "パネル角のR", "Eckenradius des Nutzens"),
+                    L10n.text(
+                        TextConstants.App.panelCornerRadiusEnglish, TextConstants.App.panelCornerRadiusJapanese,
+                        TextConstants.App.panelCornerRadiusGerman),
                     value: $options.panelCornerRadiusMM)
             }
             Divider()
             HStack(alignment: .center, spacing: 20) {
                 labeledMeasurement(
-                    L10n.text("Outline line width", "外形線幅", "Konturlinienbreite"), value: $options.dimensionLineWidthMM)
+                    L10n.text(
+                        TextConstants.Common.outlineLineWidthEnglish, TextConstants.Common.outlineLineWidthJapanese,
+                        TextConstants.Common.outlineLineWidthGerman), value: $options.dimensionLineWidthMM)
                 Text(
                     L10n.text(
-                        "Frame width is the material left around the boards. Clearance is the routed gap beside it.",
-                        "外枠幅は残す材料の幅、隙間は基板との間を切り抜く幅です。",
-                        "Die Rahmenbreite ist das Material, das um die Leiterplatten stehen bleibt. Der Abstand ist der daneben ausgefräste Spalt."
+                        TextConstants.App.frameWidthIsTheMaterialLeftAroundTheBoardsEnglish,
+                        TextConstants.App.frameWidthIsTheMaterialLeftAroundTheBoardsJapanese,
+                        TextConstants.App.frameWidthIsTheMaterialLeftAroundTheBoardsGerman
                     )
                 )
                 .interfaceFont(.caption).foregroundStyle(.secondary)
@@ -436,53 +532,108 @@ private struct PanelizerHomeView: View {
 
     private var tabSettingsCard: some View {
         routingCard(
-            title: L10n.text("Breakaway tabs", "接続タブ", "Verbindungsstege"),
+            title: L10n.text(
+                TextConstants.App.breakawayTabsEnglish, TextConstants.App.breakawayTabsJapanese,
+                TextConstants.App.breakawayTabsGerman),
             subtitle: L10n.text(
-                "Bridge boards to the frame and neighboring boards", "基板と外枠、隣接する基板どうしをつなぎます",
-                "Leiterplatten mit dem Rahmen und benachbarten Leiterplatten verbinden"), symbol: "link",
+                TextConstants.App.bridgeBoardsToTheFrameAndNeighboringBoardsEnglish,
+                TextConstants.App.bridgeBoardsToTheFrameAndNeighboringBoardsJapanese,
+                TextConstants.App.bridgeBoardsToTheFrameAndNeighboringBoardsGerman),
+            symbol: TextConstants.App.tokenLink,
             isEnabled: $options.addTabs
         ) {
             LazyVGrid(columns: pairedSettingsColumns, alignment: .leading, spacing: 18) {
-                labeledMeasurement(L10n.text("Tab width", "タブ幅", "Stegbreite"), value: $options.tabWidthMM)
+                labeledMeasurement(
+                    L10n.text(
+                        TextConstants.App.tabWidthEnglish, TextConstants.App.tabWidthJapanese,
+                        TextConstants.App.tabWidthGerman), value: $options.tabWidthMM)
                 VStack(alignment: .leading, spacing: 7) {
-                    Text(L10n.text("Tabs per edge", "各辺のタブ数", "Stege pro Kante")).interfaceFont(.caption)
+                    Text(
+                        L10n.text(
+                            TextConstants.App.tabsPerEdgeEnglish, TextConstants.App.tabsPerEdgeJapanese,
+                            TextConstants.App.tabsPerEdgeGerman)
+                    ).interfaceFont(.caption)
                         .foregroundStyle(.secondary)
                     Stepper(value: $options.tabsPerEdge, in: 1...8) {
-                        Text("\(options.tabsPerEdge)").monospacedDigit()
+                        Text(TextConstants.App.localizedInterpolatedValueTemplate(options.tabsPerEdge))
+                            .monospacedDigit()
                     }
-                    .accessibilityLabel(L10n.text("Tabs per edge", "各辺のタブ数", "Stege pro Kante"))
+                    .accessibilityLabel(
+                        L10n.text(
+                            TextConstants.App.tabsPerEdgeEnglish, TextConstants.App.tabsPerEdgeJapanese,
+                            TextConstants.App.tabsPerEdgeGerman))
                 }
             }
             VStack(alignment: .leading, spacing: 10) {
-                Text(L10n.text("Connect to frame edges", "外枠と接続する辺", "Mit Rahmenseiten verbinden")).interfaceFont(
+                Text(
+                    L10n.text(
+                        TextConstants.App.connectToFrameEdgesEnglish, TextConstants.App.connectToFrameEdgesJapanese,
+                        TextConstants.App.connectToFrameEdgesGerman)
+                ).interfaceFont(
                     .caption
                 ).foregroundStyle(.secondary)
                 LazyVGrid(columns: pairedSettingsColumns, alignment: .leading, spacing: 10) {
-                    Toggle(L10n.text("Left", "左辺", "Links"), isOn: $options.tabsLeft)
-                    Toggle(L10n.text("Right", "右辺", "Rechts"), isOn: $options.tabsRight)
-                    Toggle(L10n.text("Top", "上辺", "Oben"), isOn: $options.tabsTop)
-                    Toggle(L10n.text("Bottom", "下辺", "Unten"), isOn: $options.tabsBottom)
+                    Toggle(
+                        L10n.text(
+                            TextConstants.App.leftEnglish, TextConstants.App.leftJapanese, TextConstants.App.leftGerman),
+                        isOn: $options.tabsLeft)
+                    Toggle(
+                        L10n.text(
+                            TextConstants.App.rightEnglish, TextConstants.App.rightJapanese,
+                            TextConstants.App.rightGerman), isOn: $options.tabsRight)
+                    Toggle(
+                        L10n.text(
+                            TextConstants.App.topEnglish, TextConstants.App.topJapanese, TextConstants.App.topGerman),
+                        isOn: $options.tabsTop)
+                    Toggle(
+                        L10n.text(
+                            TextConstants.App.bottomEnglish, TextConstants.App.bottomJapanese,
+                            TextConstants.App.bottomGerman), isOn: $options.tabsBottom)
                 }.toggleStyle(.checkbox)
+                Text(
+                    L10n.text(
+                        TextConstants.App.frameTabsUseStraightOutlineSectionsWideEnoughForEnglish,
+                        TextConstants.App.frameTabsUseStraightOutlineSectionsWideEnoughForJapanese,
+                        TextConstants.App.frameTabsUseStraightOutlineSectionsWideEnoughForGerman
+                    )
+                )
+                .interfaceFont(.caption).foregroundStyle(.secondary)
             }
             Toggle(
                 L10n.text(
-                    "Also connect adjacent boards", "隣接する基板どうしもタブで接続", "Auch benachbarte Leiterplatten verbinden"),
+                    TextConstants.App.alsoConnectAdjacentBoardsEnglish,
+                    TextConstants.App.alsoConnectAdjacentBoardsJapanese,
+                    TextConstants.App.alsoConnectAdjacentBoardsGerman),
                 isOn: $options.connectBoardsWithTabs
             )
             .toggleStyle(.checkbox)
+            Text(
+                L10n.text(
+                    TextConstants.App.boardToBoardTabsAlsoRequireStraightSectionsOnEnglish,
+                    TextConstants.App.boardToBoardTabsAlsoRequireStraightSectionsOnJapanese,
+                    TextConstants.App.boardToBoardTabsAlsoRequireStraightSectionsOnGerman)
+            )
+            .interfaceFont(.caption).foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 14) {
                 Toggle(
-                    L10n.text("Add mouse-bite perforations", "切り取り用のミシン目", "Sollbruchbohrungen hinzufügen"),
+                    L10n.text(
+                        TextConstants.App.addMouseBitePerforationsEnglish,
+                        TextConstants.App.addMouseBitePerforationsJapanese,
+                        TextConstants.App.addMouseBitePerforationsGerman),
                     isOn: $options.perforateTabs
                 )
                 .toggleStyle(.checkbox)
                 if options.perforateTabs {
                     LazyVGrid(columns: pairedSettingsColumns, alignment: .leading, spacing: 18) {
                         labeledMeasurement(
-                            L10n.text("Hole diameter", "ミシン目の穴径", "Lochdurchmesser"),
+                            L10n.text(
+                                TextConstants.App.holeDiameterEnglish, TextConstants.App.holeDiameterJapanese,
+                                TextConstants.App.holeDiameterGerman),
                             value: $options.mouseBiteDiameterMM)
                         labeledMeasurement(
-                            L10n.text("Hole pitch", "穴ピッチ", "Lochabstand"), value: $options.mouseBitePitchMM)
+                            L10n.text(
+                                TextConstants.App.holePitchEnglish, TextConstants.App.holePitchJapanese,
+                                TextConstants.App.holePitchGerman), value: $options.mouseBitePitchMM)
                     }
                 }
             }
@@ -492,45 +643,64 @@ private struct PanelizerHomeView: View {
         }
         .onChange(of: options.addTabs) { _, enabled in
             if enabled {
-                if options.verticalFrameMM == 0 { options.verticalFrameMM = 5 }
-                if options.horizontalFrameMM == 0 { options.horizontalFrameMM = 5 }
-                if options.frameGapMM == 0 { options.frameGapMM = 2 }
-                if options.columnGapMM == 0 { options.columnGapMM = 2 }
-                if options.rowGapMM == 0 { options.rowGapMM = 2 }
+                // EN: Restore missing clearances from the same defaults used when opening a new panel.
+                // JA: 隙間や外枠幅が未設定なら、新規パネルと共通の初期値を補う。
+                // DE: Fehlende Abstände und Rahmenbreiten aus denselben Vorgaben wie bei einem neuen Panel ergänzen.
+                let defaults = PanelOptions()
+                if options.verticalFrameMM == 0 { options.verticalFrameMM = defaults.verticalFrameMM }
+                if options.horizontalFrameMM == 0 { options.horizontalFrameMM = defaults.horizontalFrameMM }
+                if options.frameGapMM == 0 { options.frameGapMM = defaults.frameGapMM }
+                if options.columnGapMM == 0 { options.columnGapMM = defaults.columnGapMM }
+                if options.rowGapMM == 0 { options.rowGapMM = defaults.rowGapMM }
             }
         }
     }
 
     private var guideSettingsCard: some View {
         routingCard(
-            title: L10n.text("Separation guides", "分割ガイド線", "Trennhilfslinien"),
+            title: L10n.text(
+                TextConstants.App.separationGuidesEnglish, TextConstants.App.separationGuidesJapanese,
+                TextConstants.App.separationGuidesGerman),
             subtitle: L10n.text(
-                "Mark the board separation positions", "基板を分割する位置にガイド線を追加",
-                "Trennpositionen der Leiterplatten markieren"), symbol: "scissors",
+                TextConstants.App.markTheBoardSeparationPositionsEnglish,
+                TextConstants.App.markTheBoardSeparationPositionsJapanese,
+                TextConstants.App.markTheBoardSeparationPositionsGerman), symbol: TextConstants.App.tokenScissors,
             isEnabled: $options.addVScoreSeparators
         ) {
             labeledMeasurement(
-                L10n.text("Guide line width", "ガイド線幅", "Hilfslinienbreite"), value: $options.vScoreLineWidthMM)
+                L10n.text(
+                    TextConstants.Common.guideLineWidthEnglish, TextConstants.App.guideLineWidthJapanese,
+                    TextConstants.Common.guideLineWidthGerman), value: $options.vScoreLineWidthMM)
         }
     }
 
     private var mountingHoleSettingsCard: some View {
         routingCard(
-            title: L10n.text("Mounting holes", "取付穴", "Befestigungsbohrungen"),
+            title: L10n.text(
+                TextConstants.App.mountingHolesEnglish, TextConstants.App.mountingHolesJapanese,
+                TextConstants.App.mountingHolesGerman),
             subtitle: L10n.text(
-                "Hole diameter and edge insets at the four corners", "パネル四隅の穴径と端からの距離",
-                "Lochdurchmesser und Randabstände an den vier Ecken"), symbol: "circle.dotted",
+                TextConstants.App.holeDiameterAndEdgeInsetsAtTheFourCornersEnglish,
+                TextConstants.App.holeDiameterAndEdgeInsetsAtTheFourCornersJapanese,
+                TextConstants.App.holeDiameterAndEdgeInsetsAtTheFourCornersGerman),
+            symbol: TextConstants.App.tokenCircleDotted,
             isEnabled: $options.addMountingHoles
         ) {
             LazyVGrid(columns: pairedSettingsColumns, alignment: .leading, spacing: 18) {
                 labeledMeasurement(
-                    L10n.text("X inset", "左右端から", "Abstand zum linken/rechten Rand"),
+                    L10n.text(
+                        TextConstants.App.xInsetEnglish, TextConstants.App.xInsetJapanese,
+                        TextConstants.App.xInsetGerman),
                     value: $options.mountingHoleOffsetXMM)
                 labeledMeasurement(
-                    L10n.text("Y inset", "上下端から", "Abstand zum oberen/unteren Rand"),
+                    L10n.text(
+                        TextConstants.App.yInsetEnglish, TextConstants.App.yInsetJapanese,
+                        TextConstants.App.yInsetGerman),
                     value: $options.mountingHoleOffsetYMM)
                 labeledMeasurement(
-                    L10n.text("Drill diameter", "ドリル径", "Bohrdurchmesser"), value: $options.mountingHoleDrillMM)
+                    L10n.text(
+                        TextConstants.App.drillDiameterEnglish, TextConstants.App.drillDiameterJapanese,
+                        TextConstants.App.drillDiameterGerman), value: $options.mountingHoleDrillMM)
             }
         }
         .onChange(of: options.addMountingHoles) { _, enabled in
@@ -539,12 +709,13 @@ private struct PanelizerHomeView: View {
                 // JA: 新規に有効化した穴の中心を、端から半径以上離して初期化する [mm]。
                 // DE: Mittelpunkte neu aktivierter Bohrungen mit mindestens einem Radius Abstand zum Rand
                 //     initialisieren [mm].
-                let inset = max(5, options.mountingHoleDrillMM / 2)
+                let defaults = PanelOptions()
+                let radius = options.mountingHoleDrillMM / 2
                 if options.mountingHoleOffsetXMM == 0 {
-                    options.mountingHoleOffsetXMM = inset
+                    options.mountingHoleOffsetXMM = max(defaults.mountingHoleOffsetXMM, radius)
                 }
                 if options.mountingHoleOffsetYMM == 0 {
-                    options.mountingHoleOffsetYMM = inset
+                    options.mountingHoleOffsetYMM = max(defaults.mountingHoleOffsetYMM, radius)
                 }
             }
         }
@@ -591,15 +762,20 @@ private struct PanelizerHomeView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 16) {
                 sectionHeading(
-                    "03", title: L10n.text("Panel preview", "パネルプレビュー", "Nutzenvorschau"),
+                    TextConstants.App.number03,
+                    title: L10n.text(
+                        TextConstants.App.panelPreviewEnglish, TextConstants.App.panelPreviewJapanese,
+                        TextConstants.App.panelPreviewGerman),
                     subtitle: L10n.text(
-                        "Review board positions, routed outlines and connecting tabs", "基板の配置、加工後の外形、接続タブの位置を確認します",
-                        "Leiterplattenpositionen, Fräskonturen und Verbindungsstege prüfen"))
+                        TextConstants.App.reviewBoardPositionsRoutedOutlinesAndConnectingTabsEnglish,
+                        TextConstants.App.reviewBoardPositionsRoutedOutlinesAndConnectingTabsJapanese,
+                        TextConstants.App.reviewBoardPositionsRoutedOutlinesAndConnectingTabsGerman))
                 Spacer(minLength: 0)
                 if let layout = previewLayout {
                     Text(
                         String(
-                            format: "%.1f × %.1f mm", layout.panelBounds.maxX - layout.panelBounds.minX,
+                            format: TextConstants.App.dimensionsMMFormat,
+                            layout.panelBounds.maxX - layout.panelBounds.minX,
                             layout.panelBounds.maxY - layout.panelBounds.minY)
                     )
                     .interfaceFont(.caption, weight: .semibold, monospaced: true).foregroundStyle(.indigo)
@@ -616,22 +792,27 @@ private struct PanelizerHomeView: View {
                 HStack(alignment: .center, spacing: 16) {
                     if isGeneratingArtwork { ProgressView().controlSize(.small) }
                     VStack(alignment: .leading, spacing: 5) {
-                        Text(L10n.text("Artwork preview", "完成プレビュー", "Fertigungsansicht")).interfaceFont(
+                        Text(
+                            L10n.text(
+                                TextConstants.Common.artworkPreviewEnglish, TextConstants.Common.artworkPreviewJapanese,
+                                TextConstants.Common.artworkPreviewGerman)
+                        ).interfaceFont(
                             .subheadline, weight: .semibold)
                         Text(
                             isGeneratingArtwork
                                 ? artworkStatus
                                 : L10n.text(
-                                    "View copper, pads, silk and drill holes in a separate window.",
-                                    "配線・パッド・シルク・穴を別ウィンドウで確認できます。",
-                                    "Kupfer, Pads, Bestückungsdruck und Bohrungen in einem separaten Fenster anzeigen.")
+                                    TextConstants.App.viewCopperPadsSilkAndDrillHolesInAEnglish,
+                                    TextConstants.App.viewCopperPadsSilkAndDrillHolesInAJapanese,
+                                    TextConstants.App.viewCopperPadsSilkAndDrillHolesInAGerman)
                         )
                         .interfaceFont(.caption).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                         Text(
                             L10n.text(
-                                "Generated on request · Requires KiCad 10 or later", "ボタンを押した時だけ生成 · KiCad 10以降が必要",
-                                "Erstellung auf Anfrage · Erfordert KiCad 10 oder neuer")
+                                TextConstants.App.generatedOnRequestRequiresKiCadOrLaterEnglish,
+                                TextConstants.App.generatedOnRequestRequiresKiCadOrLaterJapanese,
+                                TextConstants.App.generatedOnRequestRequiresKiCadOrLaterGerman)
                         )
                         .interfaceFont(.caption2).foregroundStyle(.tertiary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -641,15 +822,19 @@ private struct PanelizerHomeView: View {
                         openArtworkPreview()
                     } label: {
                         Label(
-                            L10n.text("Open artwork preview", "完成プレビューを開く", "Fertigungsansicht öffnen"),
-                            systemImage: "eye")
+                            L10n.text(
+                                TextConstants.App.openArtworkPreviewEnglish,
+                                TextConstants.App.openArtworkPreviewJapanese, TextConstants.App.openArtworkPreviewGerman
+                            ),
+                            systemImage: TextConstants.App.tokenEye)
                     }
                     .buttonStyle(.bordered)
                     .fixedSize(horizontal: true, vertical: false)
                     .help(
                         L10n.text(
-                            "Generate a new preview using the current panel settings", "現在の面付け設定で新しいプレビューを生成します",
-                            "Eine neue Vorschau mit den aktuellen Nutzeneinstellungen erstellen")
+                            TextConstants.App.generateANewPreviewUsingTheCurrentPanelSettingsEnglish,
+                            TextConstants.App.generateANewPreviewUsingTheCurrentPanelSettingsJapanese,
+                            TextConstants.App.generateANewPreviewUsingTheCurrentPanelSettingsGerman)
                     )
                     .disabled(documents.isEmpty || previewLayout == nil || isProcessing || isGeneratingArtwork)
                 }
@@ -666,18 +851,24 @@ private struct PanelizerHomeView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(
                         L10n.text(
-                            "Create one panel of \(boardCount) boards", "\(boardCount) 枚を1枚のパネルに配置",
-                            "Einen Nutzen mit \(boardCount) \(boardCount == 1 ? "Leiterplatte" : "Leiterplatten") erstellen"
+                            TextConstants.App.createOnePanelOfBoardCountBoardsEnglishTemplate(boardCount),
+                            TextConstants.App.createOnePanelOfBoardCountBoardsJapaneseTemplate(boardCount),
+                            TextConstants.App.createOnePanelOfBoardCountBoardsGermanTemplate(
+                                boardCount,
+                                boardCount == 1
+                                    ? TextConstants.App.tokenLeiterplatte : TextConstants.App.tokenLeiterplatten)
                         )
                     ).interfaceFont(.subheadline, weight: .semibold)
                     Text(
                         documents.isEmpty
                             ? L10n.text(
-                                "Add a board file to begin", "基板ファイルを追加してください",
-                                "Fügen Sie zunächst eine Leiterplattendatei hinzu")
+                                TextConstants.App.addABoardFileToBeginEnglish,
+                                TextConstants.App.addABoardFileToBeginJapanese,
+                                TextConstants.App.addABoardFileToBeginGerman)
                             : L10n.text(
-                                "Export one panel file. Source files are preserved.", "1つの面付けファイルを出力します。元データは変更されません。",
-                                "Eine Nutzendatei exportieren. Die Quelldateien bleiben erhalten.")
+                                TextConstants.App.exportOnePanelFileSourceFilesArePreservedEnglish,
+                                TextConstants.App.exportOnePanelFileSourceFilesArePreservedJapanese,
+                                TextConstants.App.exportOnePanelFileSourceFilesArePreservedGerman)
                     )
                     .interfaceFont(.caption).foregroundStyle(.secondary)
                 }
@@ -686,8 +877,10 @@ private struct PanelizerHomeView: View {
                     exportPanels()
                 } label: {
                     Label(
-                        L10n.text("Export panel", "面付け基板を書き出す", "Nutzen exportieren"),
-                        systemImage: "square.and.arrow.down.fill"
+                        L10n.text(
+                            TextConstants.App.exportPanelEnglish, TextConstants.App.exportPanelJapanese,
+                            TextConstants.App.exportPanelGerman),
+                        systemImage: TextConstants.App.tokenSquareAndArrowDownFill
                     )
                     .interfaceFont(.subheadline, weight: .semibold)
                     .padding(.horizontal, 8).padding(.vertical, 4)
@@ -698,10 +891,10 @@ private struct PanelizerHomeView: View {
             if includesBothFormats {
                 Label(
                     L10n.text(
-                        "EAGLE + KiCad → one .kicad_pcb panel. Conversion uses installed KiCad 10 or later.",
-                        "EAGLE + KiCad → 1つの.kicad_pcbに統合します。形式変換にはインストール済みのKiCad 10以降を使用します。",
-                        "EAGLE + KiCad → ein .kicad_pcb-Nutzen. Die Konvertierung verwendet das installierte KiCad 10 oder neuer."
-                    ), systemImage: "arrow.triangle.merge"
+                        TextConstants.App.eagleKiCadOneKicadPcbPanelConversionUsesInstalledEnglish,
+                        TextConstants.App.eagleKiCadOneKicadPcbPanelConversionUsesInstalledJapanese,
+                        TextConstants.App.eagleKiCadOneKicadPcbPanelConversionUsesInstalledGerman
+                    ), systemImage: TextConstants.App.tokenArrowTriangleMerge
                 )
                 .interfaceFont(.caption).foregroundStyle(.secondary)
             }
@@ -752,9 +945,9 @@ private struct PanelizerHomeView: View {
     ///     Vorschau-/Exportprüfung melden.
     private func measurementField(value: Binding<Double>) -> some View {
         HStack(spacing: 6) {
-            TextField("0", value: value, format: .number.precision(.fractionLength(0...3)))
+            TextField(TextConstants.App.number0Key, value: value, format: .number.precision(.fractionLength(0...3)))
                 .textFieldStyle(.roundedBorder).frame(width: 82 * textScale)
-            Text("mm").interfaceFont(.caption).foregroundStyle(.secondary)
+            Text(TextConstants.App.tokenMmKey).interfaceFont(.caption).foregroundStyle(.secondary)
         }
     }
 
@@ -824,24 +1017,32 @@ private struct PanelizerHomeView: View {
                     dimensionLineWidthMM: options.dimensionLineWidthMM)
                 imported.append(BoardDocument(url: url, data: data, summary: summary, kind: kind, shape: shape))
                 known.insert(url.standardizedFileURL)
-            } catch { failures.append("\(url.lastPathComponent): \(error.localizedDescription)") }
+            } catch {
+                failures.append(
+                    TextConstants.App.failureSummaryTemplate(url.lastPathComponent, error.localizedDescription))
+            }
         }
         documents.append(contentsOf: imported)
         previewSelection = imported.first?.id ?? documents.first?.id
         if imported.isEmpty && failures.isEmpty {
             present(
                 L10n.text(
-                    "No new supported boards were found. Already imported files are skipped.",
-                    "新しい対応基板ファイルがありません。読み込み済みファイルは追加されません。",
-                    "Keine neuen unterstützten Leiterplatten gefunden. Bereits importierte Dateien werden übersprungen."
+                    TextConstants.App.noNewSupportedBoardsWereFoundAlreadyImportedFilesEnglish,
+                    TextConstants.App.noNewSupportedBoardsWereFoundAlreadyImportedFilesJapanese,
+                    TextConstants.App.noNewSupportedBoardsWereFoundAlreadyImportedFilesGerman
                 ))
         } else {
             var message = L10n.text(
-                "Imported \(imported.count) boards. All listed boards will be combined into one panel.",
-                "\(imported.count) 個の基板を読み込みました。リスト内の基板を1枚のパネルに統合します。",
-                "\(imported.count) \(imported.count == 1 ? "Leiterplatte" : "Leiterplatten") importiert. Alle aufgelisteten Leiterplatten werden zu einem Nutzen zusammengefügt."
+                TextConstants.App.importedImportedCountBoardsAllListedBoardsWillBeEnglishTemplate(imported.count),
+                TextConstants.App.importedImportedCountBoardsAllListedBoardsWillBeJapaneseTemplate(imported.count),
+                TextConstants.App.importedImportedCountBoardsAllListedBoardsWillBeGermanTemplate(
+                    imported.count,
+                    imported.count == 1 ? TextConstants.App.tokenLeiterplatte : TextConstants.App.tokenLeiterplatten)
             )
-            if !failures.isEmpty { message += "\n\n" + failures.joined(separator: "\n") }
+            if !failures.isEmpty {
+                message +=
+                    TextConstants.App.blankLineSeparator + failures.joined(separator: TextConstants.Common.newline)
+            }
             present(message)
         }
     }
@@ -853,25 +1054,30 @@ private struct PanelizerHomeView: View {
     /// DE: Das Überschreiben von Eingaben verhindern und nur geprüfte Ausgaben atomar speichern.
     private func exportPanels() {
         guard let first = documents.first else { return }
-        let outputExtension = documents.contains { $0.kind == .kicad } ? "kicad_pcb" : "brd"
+        let outputExtension =
+            documents.contains { $0.kind == .kicad }
+            ? TextConstants.Common.tokenKicadPcb : TextConstants.Common.tokenBrd
         let chooser = NSSavePanel()
-        chooser.title = L10n.text("Export one panel board", "1枚の面付け基板を書き出す", "Einen Leiterplattennutzen exportieren")
-        chooser.prompt = L10n.text("Export", "書き出す", "Exportieren")
+        chooser.title = L10n.text(
+            TextConstants.App.exportOnePanelBoardEnglish, TextConstants.App.exportOnePanelBoardJapanese,
+            TextConstants.App.exportOnePanelBoardGerman)
+        chooser.prompt = L10n.text(
+            TextConstants.App.exportEnglish, TextConstants.App.exportJapanese, TextConstants.App.exportGerman)
         chooser.canCreateDirectories = true
         chooser.allowedContentTypes = [UTType(filenameExtension: outputExtension) ?? .data]
         chooser.isExtensionHidden = false
         let stem = first.url.deletingPathExtension().lastPathComponent
         chooser.nameFieldStringValue =
             isMixedPanel
-            ? "PCBPanel_\(documents.count)boards.\(outputExtension)"
-            : "\(stem)_panel_\(options.columns)x\(options.rows).\(outputExtension)"
+            ? TextConstants.App.tokenPCBPanelBoardsTemplate(documents.count, outputExtension)
+            : TextConstants.App.tokenPanelXTemplate(stem, options.columns, options.rows, outputExtension)
         guard chooser.runModal() == .OK, let destination = chooser.url else { return }
         guard !documents.contains(where: { PanelFileAccess.isSameFile($0.url, destination) }) else {
             present(
                 L10n.text(
-                    "Choose a different output filename to keep the source board unchanged.",
-                    "元の基板ファイルを維持するため、別の出力ファイル名を選択してください。",
-                    "Wählen Sie einen anderen Ausgabedateinamen, damit die ursprüngliche Leiterplattendatei unverändert bleibt."
+                    TextConstants.App.chooseADifferentOutputFilenameToKeepTheSourceEnglish,
+                    TextConstants.App.chooseADifferentOutputFilenameToKeepTheSourceJapanese,
+                    TextConstants.App.chooseADifferentOutputFilenameToKeepTheSourceGerman
                 ))
             return
         }
@@ -888,8 +1094,9 @@ private struct PanelizerHomeView: View {
                     isProcessing = false
                     present(
                         L10n.text(
-                            "Exported one panel board.\n\(destination.path)", "1枚の面付け基板を書き出しました。\n\(destination.path)",
-                            "Ein Leiterplattennutzen wurde exportiert.\n\(destination.path)"))
+                            TextConstants.App.exportedOnePanelBoardDestinationPathEnglishTemplate(destination.path),
+                            TextConstants.App.exportedOnePanelBoardDestinationPathJapaneseTemplate(destination.path),
+                            TextConstants.App.exportedOnePanelBoardDestinationPathGermanTemplate(destination.path)))
                 }
             } catch {
                 DispatchQueue.main.async {
@@ -911,7 +1118,9 @@ private struct PanelizerHomeView: View {
         guard !sources.isEmpty, !isGeneratingArtwork else { return }
         let configuration = options.forSourceCount(sources.count)
         isGeneratingArtwork = true
-        artworkStatus = L10n.text("Preparing artwork…", "完成プレビューを準備しています…", "Fertigungsansicht wird vorbereitet…")
+        artworkStatus = L10n.text(
+            TextConstants.App.preparingArtworkEnglish, TextConstants.App.preparingArtworkJapanese,
+            TextConstants.App.preparingArtworkGerman)
         DispatchQueue.global(qos: .userInitiated).async {
             do {
                 let artwork = try PanelArtworkRenderer.generate(sources: sources, options: configuration) { status in
@@ -936,8 +1145,8 @@ private struct PanelizerHomeView: View {
     /// DE: Das unterstützte Platinenformat zur Dateiendung zurückgeben, bei nicht unterstütztem Format nil.
     private func boardKind(for url: URL) -> BoardKind? {
         switch url.pathExtension.lowercased() {
-        case "brd": return .eagle
-        case "kicad_pcb": return .kicad
+        case TextConstants.Common.tokenBrd: return .eagle
+        case TextConstants.Common.tokenKicadPcb: return .kicad
         default: return nil
         }
     }
@@ -1007,14 +1216,19 @@ private struct PanelLayoutPreview: View {
         ZStack(alignment: .center) {
             if documents.isEmpty {
                 VStack(spacing: 12) {
-                    Image(systemName: "square.grid.2x2")
+                    Image(systemName: TextConstants.App.tokenSquareGridX2)
                         .font(.system(size: 34)).foregroundStyle(.tertiary)
-                    Text(L10n.text("Panel layout preview", "面付けレイアウトのプレビュー", "Vorschau der Nutzenanordnung"))
-                        .interfaceFont(.title3, weight: .semibold)
                     Text(
                         L10n.text(
-                            "Add board files to display the panel layout here.", "基板を追加すると、ここに面付け後の配置を表示します。",
-                            "Fügen Sie Leiterplattendateien hinzu, um hier die Nutzenanordnung anzuzeigen.")
+                            TextConstants.App.panelLayoutPreviewEnglish, TextConstants.App.panelLayoutPreviewJapanese,
+                            TextConstants.App.panelLayoutPreviewGerman)
+                    )
+                    .interfaceFont(.title3, weight: .semibold)
+                    Text(
+                        L10n.text(
+                            TextConstants.App.addBoardFilesToDisplayThePanelLayoutHereEnglish,
+                            TextConstants.App.addBoardFilesToDisplayThePanelLayoutHereJapanese,
+                            TextConstants.App.addBoardFilesToDisplayThePanelLayoutHereGerman)
                     )
                     .interfaceFont(.caption).foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -1033,18 +1247,32 @@ private struct PanelLayoutPreview: View {
             if let rendered, rendered.sourceIDs == documents.map(\.id), !documents.isEmpty {
                 let displayedOptions = rendered.options
                 HStack(spacing: 12) {
-                    Label(L10n.text("Board outlines", "基板外形", "Leiterplattenkonturen"), systemImage: "rectangle")
-                        .foregroundStyle(.teal)
                     Label(
-                        L10n.text("Panel routing", "パネル加工線", "Fräskontur des Nutzens"), systemImage: "rectangle.dashed"
+                        L10n.text(
+                            TextConstants.App.boardOutlinesEnglish, TextConstants.App.boardOutlinesJapanese,
+                            TextConstants.App.boardOutlinesGerman), systemImage: TextConstants.Common.tokenRectangle
+                    )
+                    .foregroundStyle(.teal)
+                    Label(
+                        L10n.text(
+                            TextConstants.App.panelRoutingEnglish, TextConstants.App.panelRoutingJapanese,
+                            TextConstants.App.panelRoutingGerman), systemImage: TextConstants.App.tokenRectangleDashed
                     ).foregroundStyle(.indigo)
                     if displayedOptions.addTabs {
-                        Label(L10n.text("Breakaway tabs", "接続タブ", "Verbindungsstege"), systemImage: "link")
-                            .foregroundStyle(.secondary)
+                        Label(
+                            L10n.text(
+                                TextConstants.App.breakawayTabsEnglish, TextConstants.App.breakawayTabsJapanese,
+                                TextConstants.App.breakawayTabsGerman), systemImage: TextConstants.App.tokenLink
+                        )
+                        .foregroundStyle(.secondary)
                     }
                     if displayedOptions.perforateTabs && displayedOptions.addTabs {
-                        Label(L10n.text("Mouse bites", "ミシン目", "Sollbruchbohrungen"), systemImage: "circle.dotted")
-                            .foregroundStyle(.secondary)
+                        Label(
+                            L10n.text(
+                                TextConstants.App.mouseBitesEnglish, TextConstants.App.mouseBitesJapanese,
+                                TextConstants.App.mouseBitesGerman), systemImage: TextConstants.App.tokenCircleDotted
+                        )
+                        .foregroundStyle(.secondary)
                     }
                 }
                 .interfaceFont(.caption2)
@@ -1086,7 +1314,10 @@ private struct PanelLayoutPreview: View {
                         let b = shape.bounds
                         return PanelBoardShape(
                             bounds: RouteRect(minX: b.minX, minY: -b.maxY, maxX: b.maxX, maxY: -b.minY),
-                            contours: shape.contours.map { $0.map { RoutePoint(x: $0.x, y: -$0.y) } })
+                            contours: shape.contours.map { $0.map { RoutePoint(x: $0.x, y: -$0.y) } },
+                            straightEdges: shape.straightEdges.map {
+                                RouteSegment(a: RoutePoint(x: $0.a.x, y: -$0.a.y), b: RoutePoint(x: $0.b.x, y: -$0.b.y))
+                            })
                     }
                     let layout = try PanelCompositionLayout(bounds: shapes.map(\.bounds), options: configuration)
                     var routingOptions = configuration
@@ -1097,7 +1328,8 @@ private struct PanelLayoutPreview: View {
                     }
                     let placed = try layout.placedContours(shapes)
                     let routing = try PanelRouting.plan(
-                        boards: placed, arrayBounds: layout.arrayBounds, options: routingOptions)
+                        boards: placed, arrayBounds: layout.arrayBounds, options: routingOptions,
+                        straightEdges: layout.placedStraightEdges(shapes))
                     let loops = try PanelRouting.closedLoops(routing.segments)
                     return RenderedPanel(
                         sourceIDs: boards.map(\.id), options: configuration, layout: layout, contours: placed,
@@ -1183,8 +1415,11 @@ private struct PanelLayoutPreview: View {
                     let fontSize = min(13 * textScale, max(9 * textScale, pixels / 8))
                     let capacity = max(3, Int(availableWidth / (fontSize * 0.8)))
                     let fullLabel =
-                        "\(placement.sourceIndex + 1) · " + document.url.deletingPathExtension().lastPathComponent
-                    let title = fullLabel.count > capacity ? String(fullLabel.prefix(capacity - 1)) + "…" : fullLabel
+                        TextConstants.App.boardIndexCaptionTemplate(placement.sourceIndex + 1)
+                        + document.url.deletingPathExtension().lastPathComponent
+                    let title =
+                        fullLabel.count > capacity
+                        ? String(fullLabel.prefix(capacity - 1)) + TextConstants.App.ellipsis : fullLabel
                     let label = context.resolve(
                         Text(title).font(.system(size: fontSize, weight: selected ? .bold : .medium)).foregroundColor(
                             .primary))
